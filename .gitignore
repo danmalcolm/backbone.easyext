@@ -1,0 +1,6 @@
+*.swp
+*.orig
+Gemfile.lock
+*.suo
+/_ReSharper.backbone.validation
+*.user
