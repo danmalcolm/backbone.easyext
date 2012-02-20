@@ -216,12 +216,13 @@ describe("ModelExtensionSpecs", function () {
 					});
 
 					it("should retain original models in collection", function () {
-						
 						expect(_.pluck(order.get("lines").models, "cid")).toEqual(_.pluck(originalModels, "cid"));
 					});
 
 					it("should set attributes of models in collection", function () {
 						var lines = order.get("lines");
+						expect(lines.at(0).id).toEqual(13344);
+						expect(lines.at(1).id).toEqual(13345);
 					});
 
 				});

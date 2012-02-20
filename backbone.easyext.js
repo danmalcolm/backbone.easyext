@@ -30,15 +30,16 @@ Backbone.easyext = (function () {
 				}
 				if (value) {
 					if (value.attributes && _.isArray(value.correlationAttrs)) {
-						// Looks like a model with correlationAttrs so add nested object containing values
-						value = getCorrelationData(value, attributes);
+						// Looks like a model with correlationAttrs so add nested object
+						// containing values
+						value = this.getDataToCompare(value, value.attributes);
 					} else if (value && _.isFunction(value.toJSON)) {
 						value = value.toJSON();
 					}
 				}
 				memo[name] = value;
 				return memo;
-			}, {});
+			}, {}, this);
 			return data;
 		}
 	};
@@ -94,19 +95,42 @@ Backbone.easyext = (function () {
 					// Can't convert TODO: needs error, warning?
 					return value;
 				}
-				var collection;
-				if (attributes[key] instanceof descriptor.collection) {
+				var collection = attributes[key]; ;
+				if (collection instanceof descriptor.collection) {
 					// Return existing collection, so that we don't end up with
 					// a different collection instance (objects might be bound
 					// to collection)
-					collection = attributes[key];
-					// TODO: merge array of data with models in collection
-					collection.reset(value);
+					this.mergeModels(collection, value);
 				} else {
 					// Convert array to collection
 					collection = new descriptor.collection(value);
 				}
 				return collection;
+			},
+			mergeModels: function (collection, modelsData) {
+
+				var idAttribute = collection.model.prototype.idAttribute;
+				var transientModels = collection.filter(function (model) {
+					return _.isNull(model.id) || _.isUndefined(model.id);
+				});
+
+				var models = _.map(modelsData, function (attributes) {
+					// Try and get by id
+					var model = collection.get(attributes[idAttribute]);
+					if (!model) {
+						model = _.detect(transientModels, function (t) {
+							return modelComparer.attributesCorrelateWithModel(t, attributes);
+						});
+					}
+					if (model) {
+						model.set(attributes);
+						return model;
+					} else {
+						// just use attributes, collection will convert to model
+						return attributes;
+					}
+				});
+				collection.reset(models);
 			}
 		}
 	};
