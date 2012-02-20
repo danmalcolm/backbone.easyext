@@ -135,7 +135,6 @@ describe("ModelExtensionSpecs", function () {
 						origin: "web"
 					});
 
-
 					it("should not retain child model instance", function () {
 						expect(order.get("customer")).not.toBe(originalChild);
 					});
@@ -169,7 +168,11 @@ describe("ModelExtensionSpecs", function () {
 				correlationAttrs: ["product", "quantity"]
 			});
 			var OrderLineCollection = Backbone.Collection.extend({
-				model: OrderLine
+				model: OrderLine,
+				initialize: function (models, options) {
+					this.parent = options.parent;
+				}
+
 			});
 			var Product = Backbone.Model.extend({
 				correlationAttrs: ["ean"]
@@ -184,6 +187,10 @@ describe("ModelExtensionSpecs", function () {
 
 				it("should convert array to collection", function () {
 					expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
+				});
+
+				it("should include reference to parent in collection options", function () {
+					expect(order.get("lines").parent).toBe(order);
 				});
 
 				it("should convert models in collection from array elements", function () {

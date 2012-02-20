@@ -53,7 +53,7 @@ Backbone.easyext = (function () {
 			canConvert: function (descriptor) {
 				return _.isFunction(descriptor.model);
 			},
-			convert: function (key, value, attributes, descriptor) {
+			convert: function (parent, key, value, attributes, descriptor) {
 				if (value instanceof descriptor.model) {
 					// Value being set already the kind of model we need
 					return value;
@@ -86,7 +86,7 @@ Backbone.easyext = (function () {
 			canConvert: function (descriptor) {
 				return _.isFunction(descriptor.collection);
 			},
-			convert: function (key, value, attributes, descriptor) {
+			convert: function (parent, key, value, attributes, descriptor) {
 				if (value instanceof descriptor.collection) {
 					// Value being set is already the kind of collection we need
 					return value;
@@ -103,7 +103,7 @@ Backbone.easyext = (function () {
 					this.mergeModels(collection, value);
 				} else {
 					// Convert array to collection
-					collection = new descriptor.collection(value);
+					collection = new descriptor.collection(value, { parent: parent });
 				}
 				return collection;
 			},
@@ -154,7 +154,7 @@ Backbone.easyext = (function () {
 			var convertor = _.detect(convertors, function (c) {
 				return c.canConvert(descriptor);
 			});
-			return convertor ? convertor.convert(key, value, attributes, descriptor) : value;
+			return convertor ? convertor.convert(this.model, key, value, attributes, descriptor) : value;
 		}
 	});
 

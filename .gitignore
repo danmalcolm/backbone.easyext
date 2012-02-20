@@ -2,5 +2,5 @@
 *.orig
 Gemfile.lock
 *.suo
-/_ReSharper.backbone.validation
+_ReSharper.backbone.easyext
 *.user
