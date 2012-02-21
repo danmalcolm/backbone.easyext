@@ -1,26 +1,71 @@
 describe("ModelExtensionSpecs", function () {
 
-	//	describe("Dirty Tracking", function () {
-	//
-	//		var Model = Backbone.Model.extend(Backbone.easyext.models.DirtyTracking);
-	//		var model;
-	//
-	//		beforeEach(function () {
-	//			model = new Model({
-	//				code: "apple",
-	//				name: "Apple"
-	//			});
-	//		});
-	//
-	//		it("should not be be dirty if no changes have been made", function () {
-	//			expect(model.isDirty()).toBeFalse();
-	//		});
-	//
-	//		it("should be dirty if attribute has changed", function () {
-	//
-	//		});
-	//
-	//	});
+	describe("Dirty Tracking", function () {
+
+		// Demo models - in a real application you'll probably prefer to copy the methods and 
+		// constructor override from DirtyTrackingModel into your own model supertype, rather 
+		// than extending it directly
+		var Product = Backbone.easyext.models.DirtyTrackingModel.extend({});
+
+		var product;
+
+		beforeEach(function () {
+			product = new Product({
+				id: 123456,
+				code: "apple",
+				name: "Apple",
+				tags: [ "fruit", "healthy" ]
+			});
+		});
+
+		var simulateSuccessfulSync = function (data) {
+			spyOn(Backbone, 'sync').andCallFake(function (method, model, options) {
+				options.success(data);
+			});
+		};
+
+		it("should not be be dirty if no changes have been made", function () {
+			expect(product.isDirty()).toBeFalsy();
+		});
+
+		it("should be dirty if attribute has changed", function () {
+			product.set("name", "New Name!");
+			expect(product.isDirty()).toBeTruthy();
+		});
+		
+		it("should not be dirty if attribute has been changed and then been reverted to original", function () {
+			product.set("name", "New Name!");
+			product.set("name", "Apple");
+			expect(product.isDirty()).toBeFalsy();
+		});
+
+		it("should not be dirty after changes saved via sync", function () {
+			product.set("name", "New Name!");
+			simulateSuccessfulSync({
+				id: 123456,
+				code: "apple",
+				name: "Apple"
+			});
+			product.save();
+			expect(product.isDirty()).toBeFalsy();
+		});
+
+		it("should not be dirty after changes reverted via fetch", function () {
+			product.set("name", "New Name!");
+			simulateSuccessfulSync({
+				id: 123456,
+				code: "apple",
+				name: "Apple2"
+			});
+			// Note: no event fired after fetch completes, so we need to manually trigger event.
+			// We're choosing to reuse "sync" event here, as it reflects a sync between model and 
+			// server data (just opposite direction to save)
+			product.fetch({ success: function () { product.trigger("sync"); } });
+			expect(product.isDirty()).toBeFalsy();
+		});
+
+
+	});
 
 
 	describe("AttributeConversion", function () {

@@ -1,4 +1,28 @@
 Backbone.easyext = (function () {
+	
+	// Dirty tracking
+
+	var DirtyTrackingModel = Backbone.Model.extend({
+		constructor: function () {
+			Backbone.Model.prototype.constructor.apply(this, arguments);
+			this.initDirtyTracking();
+		},
+
+		initDirtyTracking: function () {
+			this.attributesForDirtyTracking = this.toJSON();
+			this.on("sync", function () {
+				this.attributesForDirtyTracking = this.toJSON();
+			}, this);
+		},
+
+		isDirty: function () {
+			var current = this.toJSON();
+			var dirty = !_.isEqual(this.attributesForDirtyTracking, current);
+			return dirty;
+		}
+
+	});
+
 
 	// Attribute conversion
 
@@ -179,20 +203,10 @@ Backbone.easyext = (function () {
 		}
 	};
 
-	// Dirty tracking
-
-	// Mix-in used to extend Model with attribute conversion functionality
-	var DirtyTracking = {
-		isDirty: function () {
-			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
-			return this.attributeConvertor.convert(key, value, attributes);
-		}
-	};
-
-
 	return {
 		models: {
-			AttributeConversion: AttributeConversion
+			AttributeConversion: AttributeConversion,
+			DirtyTrackingModel: DirtyTrackingModel
 		}
 	};
 })();
