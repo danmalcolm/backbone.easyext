@@ -1,5 +1,7 @@
 Backbone.easyext = (function () {
 
+	// Attribute conversion
+
 	var modelComparer = {
 		// Indicates whether a set of attributes belongs to the specified model.
 		// This check is required when the model's attributes are set using data from
@@ -44,7 +46,6 @@ Backbone.easyext = (function () {
 		}
 	};
 
-	// Attribute conversion
 
 	// Convertors
 	var standardConvertors = {
@@ -132,9 +133,21 @@ Backbone.easyext = (function () {
 				});
 				collection.reset(models);
 			}
+		},
+		// Converts dates from string value like "/Date(1361441768427)/" used by Microsoft's JSON serializers and JSON.Net: 
+		// http://weblogs.asp.net/bleroy/archive/2008/01/18/dates-and-json.aspx
+		dotNetDateConvertor: {
+			canConvert: function (descriptor) {
+				return descriptor.value === ".netdate";
+			},
+			convert: function (parent, key, value, attributes, descriptor) {
+				var match = /\/Date\((-?\d+)\)\//.exec(value);
+				return match ? new Date(Number(match[1])) : value;
+			}
 		}
+
 	};
-	var convertors = [standardConvertors.modelConvertor, standardConvertors.collectionConvertor];
+	var convertors = [standardConvertors.modelConvertor, standardConvertors.collectionConvertor, standardConvertors.dotNetDateConvertor];
 
 	// Handles attribute conversion for a model instance and manages conversion of attribute values to 
 	// specified types, e.g. raw objects to Models, arrays to Collections
@@ -165,6 +178,17 @@ Backbone.easyext = (function () {
 			return this.attributeConvertor.convert(key, value, attributes);
 		}
 	};
+
+	// Dirty tracking
+
+	// Mix-in used to extend Model with attribute conversion functionality
+	var DirtyTracking = {
+		isDirty: function () {
+			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
+			return this.attributeConvertor.convert(key, value, attributes);
+		}
+	};
+
 
 	return {
 		models: {

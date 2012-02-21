@@ -1,5 +1,28 @@
 describe("ModelExtensionSpecs", function () {
 
+	//	describe("Dirty Tracking", function () {
+	//
+	//		var Model = Backbone.Model.extend(Backbone.easyext.models.DirtyTracking);
+	//		var model;
+	//
+	//		beforeEach(function () {
+	//			model = new Model({
+	//				code: "apple",
+	//				name: "Apple"
+	//			});
+	//		});
+	//
+	//		it("should not be be dirty if no changes have been made", function () {
+	//			expect(model.isDirty()).toBeFalse();
+	//		});
+	//
+	//		it("should be dirty if attribute has changed", function () {
+	//
+	//		});
+	//
+	//	});
+
+
 	describe("AttributeConversion", function () {
 
 		// Extend a base model type for test models
@@ -146,7 +169,6 @@ describe("ModelExtensionSpecs", function () {
 				});
 
 			});
-
 		});
 
 		describe("collection attributes", function () {
@@ -236,8 +258,28 @@ describe("ModelExtensionSpecs", function () {
 
 			});
 
+		});
 
+		describe(".net date value attributes", function () {
 
+			var Order = Model.extend({
+				attributeConversion: function () {
+					return {
+						date: { value: ".netdate" }
+					};
+				}
+			});
+
+			describe("when setting value", function () {
+				it("should convert serialized date value to date", function () {
+					var order = new Order({ date: "/Date(1325590229000)/" }); //Jan 03 2012 11:30:29
+					expect(order.get("date")).toEqual(new Date(1325590229000));
+				});
+				it("should not convert invalid format value to date", function () {
+					var order = new Order({ date: "/Date(XXXX)/" }); //Jan 03 2012 11:30:29
+					expect(order.get("date")).toEqual("/Date(XXXX)/");
+				});
+			});
 		});
 
 
