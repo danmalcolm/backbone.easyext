@@ -265,7 +265,7 @@ describe("ModelExtensionSpecs", function () {
 			var Order = Model.extend({
 				attributeConversion: function () {
 					return {
-						date: { value: ".netdate" }
+						date: { value: ".netjsondate" }
 					};
 				}
 			});

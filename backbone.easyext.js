@@ -138,7 +138,7 @@ Backbone.easyext = (function () {
 		// http://weblogs.asp.net/bleroy/archive/2008/01/18/dates-and-json.aspx
 		dotNetDateConvertor: {
 			canConvert: function (descriptor) {
-				return descriptor.value === ".netdate";
+				return descriptor.value === ".netjsondate";
 			},
 			convert: function (parent, key, value, attributes, descriptor) {
 				var match = /\/Date\((-?\d+)\)\//.exec(value);
