@@ -2,9 +2,9 @@ describe("ModelExtensionSpecs", function () {
 
 	describe("Dirty Tracking", function () {
 
-		// Demo models - in a real application you'll probably prefer to copy the methods and 
-		// constructor override from DirtyTrackingModel into your own model supertype, rather 
-		// than extending it directly
+		// Demo models - in a real application you'll probably prefer to copy-and-paste the 
+		// methods and constructor override from DirtyTrackingModel into your own model 
+		// supertype, rather than extending it directly.
 		var Product = Backbone.easyext.models.DirtyTrackingModel.extend({});
 
 		var product;
