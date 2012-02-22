@@ -194,9 +194,12 @@ Backbone.easyext = (function () {
 				});
 
 				var models = _.map(modelsData, function (attributes) {
-					// Try and get by id
+					// Try and find model with same id
 					var model = collection.get(attributes[idAttribute]);
 					if (!model) {
+						// Otherwise find a match among unsaved models
+						// TODO - could do with caching result of modelComparer.getDataToCompare
+						// as the same model could be compared multiple times
 						model = _.detect(transientModels, function (t) {
 							return modelComparer.attributesCorrelateWithModel(t, attributes);
 						});
