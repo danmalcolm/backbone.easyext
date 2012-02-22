@@ -38,8 +38,9 @@ Backbone.easyext = (function () {
 		}
 	});
 
-	// Extends a model with dirty tracking functionality by adding
-	// an isDirty method
+	// Extends a model with dirty tracking functionality by creating
+	// an instance of DirtyTracker bound to the model and adding an
+	// isDirty method to the model.
 	DirtyTracker.extendModel = function (model) {
 		var tracker = new DirtyTracker(model);
 		// Add new method to model
@@ -50,7 +51,7 @@ Backbone.easyext = (function () {
 
 	// Example of how to add dirty tracking functionality to a model 
 	// supertype, probably simplest way to add dirty tracking functionality 
-	// to your application
+	// to your application if you have simple models
 	var ModelWithDirtyTracking = Backbone.Model.extend({
 		constructor: function () {
 			Backbone.Model.prototype.constructor.apply(this, arguments);
@@ -58,6 +59,24 @@ Backbone.easyext = (function () {
 		}
 	});
 
+	var MyModel = ModelWithDirtyTracking.extend({
+		/* other stuff */
+	});
+
+	// Important: If you extend your models as above and you are using
+	// a deep model graph, each individual model in the graph will end up 
+	// doing its own dirty tracking, which probably isn't what you need. You'll
+	// be interested in the overall state of the root object. In this case, you
+	// should instantiate an instance of DirtyTracker directly in your view
+	// using the root model.
+	var MyView = Backbone.View.extend({
+		initialize: function () {
+			this.tracker = new Backbone.easyext.models.DirtyTracker(this.model);
+		},
+		isModelDirty: function () {
+			return this.tracker.isDirty();
+		}
+	});
 
 	// Attribute conversion
 
