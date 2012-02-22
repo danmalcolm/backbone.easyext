@@ -2,21 +2,32 @@ describe("ModelExtensionSpecs", function () {
 
 	describe("Dirty Tracking", function () {
 
-		// Demo models - in a real application you'll probably prefer to copy-and-paste the 
-		// methods and constructor override from DirtyTrackingModel into your own model 
-		// supertype, rather than extending it directly.
-		var Product = Backbone.easyext.models.DirtyTrackingModel.extend({});
+		// Demo models
 
-		var product;
+		// Adding dirty tracking functionality to a model supertype
+		// is probably the best way to add dirty tracking functionality 
+		// to your application
 
-		beforeEach(function () {
-			product = new Product({
-				id: 123456,
-				code: "apple",
-				name: "Apple",
-				tags: [ "fruit", "healthy" ]
-			});
+		var Model = Backbone.Model.extend({
+			constructor: function () {
+				Backbone.Model.prototype.constructor.apply(this, arguments);
+				// Extend model with dirty tracking functionality
+				Backbone.easyext.models.DirtyTracker.extendModel(this);
+			}
 		});
+
+		var Product = Model.extend({});
+
+		var Review = Model.extend({});
+
+		var ReviewCollection = Backbone.Collection.extend({
+			model: Review,
+			comparator: function (model) {
+				return model.id;
+			}
+		});
+		
+		var product;
 
 		var simulateSuccessfulSync = function (data) {
 			spyOn(Backbone, 'sync').andCallFake(function (method, model, options) {
@@ -24,47 +35,120 @@ describe("ModelExtensionSpecs", function () {
 			});
 		};
 
-		it("should not be be dirty if no changes have been made", function () {
-			expect(product.isDirty()).toBeFalsy();
-		});
+		describe("when testing simple model", function () {
 
-		it("should be dirty if attribute has changed", function () {
-			product.set("name", "New Name!");
-			expect(product.isDirty()).toBeTruthy();
+			beforeEach(function () {
+				product = new Product({
+					id: 123456,
+					code: "apple",
+					name: "Apple"
+				});
+			});
+
+			it("should not be be dirty if no changes have been made", function () {
+				expect(product.isDirty()).toBeFalsy();
+			});
+
+			it("should be dirty if attribute has changed", function () {
+				product.set("name", "New Name!");
+				expect(product.isDirty()).toBeTruthy();
+			});
+
+			it("should not be dirty if attribute has been changed and then been reverted to original", function () {
+				product.set("name", "New Name!");
+				product.set("name", "Apple");
+				expect(product.isDirty()).toBeFalsy();
+			});
+
+			it("should not be dirty after changes saved via sync", function () {
+				product.set("name", "New Name!");
+				simulateSuccessfulSync({
+					id: 123456,
+					code: "apple",
+					name: "Apple"
+				});
+				product.save();
+				expect(product.isDirty()).toBeFalsy();
+			});
+
+			it("should not be dirty after changes overwritten by fetch, triggering sync event", function () {
+				product.set("name", "New Name!");
+				simulateSuccessfulSync({
+					id: 123456,
+					code: "apple",
+					name: "Apple2"
+				});
+				// Note: no event fired by backbone after fetch, so we need to manually trigger event.
+				// We're choosing to reuse "sync" event here, as it reflects a sync between model and 
+				// server data (just opposite direction to save)
+				product.fetch({ success: function () { product.trigger("sync"); } });
+				expect(product.isDirty()).toBeFalsy();
+			});
 		});
 		
-		it("should not be dirty if attribute has been changed and then been reverted to original", function () {
-			product.set("name", "New Name!");
-			product.set("name", "Apple");
-			expect(product.isDirty()).toBeFalsy();
-		});
-
-		it("should not be dirty after changes saved via sync", function () {
-			product.set("name", "New Name!");
-			simulateSuccessfulSync({
-				id: 123456,
-				code: "apple",
-				name: "Apple"
+		describe("when testing model with nested collection", function () {
+			var review1, review2;
+			beforeEach(function () {
+				var reviews = [
+					new Review({ id: 8879, user: "Dave", comments: "They are very nice" }),
+					new Review({ id: 9899, user: "Mike", comments: "I agree" })
+				];
+				product = new Product({
+					id: 123456,
+					code: "apple",
+					name: "Apple",
+					reviews: new ReviewCollection(reviews)
+				});
+				review1 = product.get("reviews").at(0);
+				review2 = product.get("reviews").at(1);
 			});
-			product.save();
-			expect(product.isDirty()).toBeFalsy();
-		});
 
-		it("should not be dirty after changes reverted via fetch", function () {
-			product.set("name", "New Name!");
-			simulateSuccessfulSync({
-				id: 123456,
-				code: "apple",
-				name: "Apple2"
+			it("should not be be dirty if no changes have been made", function () {
+				expect(product.isDirty()).toBeFalsy();
 			});
-			// Note: no event fired after fetch completes, so we need to manually trigger event.
-			// We're choosing to reuse "sync" event here, as it reflects a sync between model and 
-			// server data (just opposite direction to save)
-			product.fetch({ success: function () { product.trigger("sync"); } });
-			expect(product.isDirty()).toBeFalsy();
+
+			it("should be dirty if attribute of model in collection has changed", function () {
+				review1.set("comments", "New!!!!");
+				expect(product.isDirty()).toBeTruthy();
+			});
+
+			it("should not be dirty if attribute of model in collection has been changed then reverted to original", function () {
+				var original = review1.get("comments");
+				review1.set("comments", "New!!!!");
+				review1.set("comments", original);
+				expect(product.isDirty()).toBeFalsy();
+			});
+
+			it("should be dirty if new model added to collection", function () {
+				product.get("reviews").add(new Review({ user: "Joe", comments: "I prefer pears" }));
+				expect(product.isDirty()).toBeTruthy();
+			});
+
+			it("should be dirty if model removed from collection", function () {
+				product.get("reviews").remove(review1);
+				expect(product.isDirty()).toBeTruthy();
+			});
+
+			it("should not be dirty if removing, then adding model back to collection maintaining previous model order", function () {
+				product.get("reviews").remove(review1);
+				product.get("reviews").add(review1);
+				expect(product.isDirty()).toBeFalsy();
+			});
+			
+			it("should be dirty if removing, then adding model back to collection results in change to model order", function () {
+				product.get("reviews").comparator = null;
+				product.get("reviews").remove(review1);
+				product.get("reviews").add(review1);
+				expect(product.isDirty()).toBeTruthy();
+			});
+
+			it("should not be dirty if new model added, then removed from collection", function () {
+				var review = new Review({ user: "Joe", comments: "I prefer pears" });
+				product.get("reviews").add(review);
+				product.get("reviews").remove(review);
+				expect(product.isDirty()).toBeFalsy();
+			});
 		});
-
-
 	});
 
 

@@ -1,26 +1,61 @@
 Backbone.easyext = (function () {
-	
+
 	// Dirty tracking
 
-	var DirtyTrackingModel = Backbone.Model.extend({
-		constructor: function () {
-			Backbone.Model.prototype.constructor.apply(this, arguments);
-			this.initDirtyTracking();
+	var DirtyTracker = function (model) {
+		this.model = model;
+		this.initialize();
+
+	};
+	_.extend(DirtyTracker.prototype, {
+
+		initialize: function () {
+			this.trackLastSyncedState();
+			this.model.on("sync", this.trackLastSyncedState, this);
 		},
 
-		initDirtyTracking: function () {
-			this.attributesForDirtyTracking = this.toJSON();
-			this.on("sync", function () {
-				this.attributesForDirtyTracking = this.toJSON();
-			}, this);
+		trackLastSyncedState: function () {
+			this.lastSyncedState = this.cloneState(this.model);
 		},
 
 		isDirty: function () {
-			var current = this.toJSON();
-			var dirty = !_.isEqual(this.attributesForDirtyTracking, current);
+			var currentState = this.cloneState(this.model);
+			var dirty = !_.isEqual(this.lastSyncedState, currentState);
 			return dirty;
-		}
+		},
 
+		// Returns a deep clone of the model's attributes, cloning the
+		// attributes of nested models
+		cloneState: function (model) {
+			var obj = {};
+			var attributes = model.attributes;
+			for (var name in attributes) {
+				var value = attributes[name];
+				value = value && value.toJSON ? value.toJSON() : value;
+				obj[name] = value;
+			}
+			return obj;
+		}
+	});
+
+	// Extends a model with dirty tracking functionality by adding
+	// an isDirty method
+	DirtyTracker.extendModel = function (model) {
+		var tracker = new DirtyTracker(model);
+		// Add new method to model
+		model.isDirty = function () {
+			return tracker.isDirty();
+		};
+	};
+
+	// Example of how to add dirty tracking functionality to a model 
+	// supertype, probably simplest way to add dirty tracking functionality 
+	// to your application
+	var ModelWithDirtyTracking = Backbone.Model.extend({
+		constructor: function () {
+			Backbone.Model.prototype.constructor.apply(this, arguments);
+			Backbone.easyext.models.DirtyTracker.extendModel(this);
+		}
 	});
 
 
@@ -206,7 +241,7 @@ Backbone.easyext = (function () {
 	return {
 		models: {
 			AttributeConversion: AttributeConversion,
-			DirtyTrackingModel: DirtyTrackingModel
+			DirtyTracker: DirtyTracker
 		}
 	};
 })();
