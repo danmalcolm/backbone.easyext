@@ -377,6 +377,26 @@ describe("AttributeConversion", function () {
 			});
 		});
 
+		describe("when creating parent without collection data", function () {
+
+			var order = new Order({ date: new Date(2012, 1, 1) });
+
+			it("should create empty collection on model", function () {
+				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
+			});
+		});
+		
+		describe("when creating parent without any data", function () {
+
+			var order = new Order({});
+			// FAILS - TODO - doesn't get initialised unless values set (ie prepareValue called),
+			// expect we'll need to get applications to add something to constructor / 
+			// initialize for one-off initialization
+			it("should create empty collection on model", function () {
+				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
+			});
+		});
+		
 		describe("when updating attributes with data from server", function () {
 
 			describe("when collection models are non-persistent and data contains persistent data for same models", function () {
