@@ -330,6 +330,9 @@ describe("AttributeConversion", function () {
 	describe("collection attributes", function () {
 
 		var Order = Model.extend({
+			defaults: {
+				lines: []
+			},
 			attributeConversion: function () {
 				return {
 					lines: { collection: OrderLineCollection }
@@ -377,6 +380,25 @@ describe("AttributeConversion", function () {
 			});
 		});
 
+		// Note that the models defaults property needs to be set to enable empty collections
+		// to be initialized
+		describe("when creating parent without collection data", function () {
+
+			var order = new Order({ date: new Date(2012, 1, 1) });
+
+			it("should create empty collection on model", function () {
+				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
+			});
+		});
+		
+		describe("when creating parent without any data", function () {
+
+			var order = new Order({});
+			it("should create empty collection on model", function () {
+				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
+			});
+		});
+		
 		describe("when updating attributes with data from server", function () {
 
 			describe("when collection models are non-persistent and data contains persistent data for same models", function () {

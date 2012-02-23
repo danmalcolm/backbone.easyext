@@ -1,6 +1,7 @@
 Backbone.easyext = (function () {
 
-	// Dirty tracking
+	// ----------------------------------------------------------------------------------------
+	// Dirty tracking extension functionality
 
 	var DirtyTracker = function (model) {
 		this.model = model;
@@ -78,7 +79,9 @@ Backbone.easyext = (function () {
 		}
 	});
 
-	// Attribute conversion
+
+	// ----------------------------------------------------------------------------------------
+	// Attribute conversion extension functionality
 
 	var modelComparer = {
 		// Indicates whether a set of attributes belongs to the specified model.
@@ -129,10 +132,10 @@ Backbone.easyext = (function () {
 	var standardConvertors = {
 		// converts raw object to a model instance using ctor specified by "model" property
 		modelConvertor: {
-			canConvert: function (descriptor) {
-				return _.isFunction(descriptor.model);
+			appliesTo: function (attrConfig) {
+				return _.isFunction(attrConfig.model);
 			},
-			convert: function (parent, key, value, attributes, descriptor) {
+			convert: function (parent, descriptor, value) {
 				if (value instanceof descriptor.model) {
 					// Value being set already the kind of model we need
 					return value;
@@ -143,7 +146,7 @@ Backbone.easyext = (function () {
 				}
 				var newAttributes = value;
 				var model;
-				model = attributes[key];
+				model = parent.attributes[descriptor.key];
 				if (model instanceof descriptor.model && modelComparer.attributesCorrelateWithModel(model, newAttributes)) {
 					// Update attributes of existing model, so that we don't end up with
 					// a different model instance (objects might be bound to events)
@@ -162,10 +165,10 @@ Backbone.easyext = (function () {
 		},
 		// creates a collection instance using ctor specified by "collection" property
 		collectionConvertor: {
-			canConvert: function (descriptor) {
-				return _.isFunction(descriptor.collection);
+			appliesTo: function (attrConfig) {
+				return _.isFunction(attrConfig.collection);
 			},
-			convert: function (parent, key, value, attributes, descriptor) {
+			convert: function (parent, descriptor, value) {
 				if (value instanceof descriptor.collection) {
 					// Value being set is already the kind of collection we need
 					return value;
@@ -174,7 +177,7 @@ Backbone.easyext = (function () {
 					// Can't convert TODO: needs error, warning?
 					return value;
 				}
-				var collection = attributes[key]; ;
+				var collection = parent.attributes[descriptor.key];
 				if (collection instanceof descriptor.collection) {
 					// Return existing collection, so that we don't end up with
 					// a different collection instance (objects might be bound
@@ -218,10 +221,10 @@ Backbone.easyext = (function () {
 		// Converts dates from string value like "/Date(1361441768427)/" used by Microsoft's JSON serializers and JSON.Net: 
 		// http://weblogs.asp.net/bleroy/archive/2008/01/18/dates-and-json.aspx
 		dotNetDateConvertor: {
-			canConvert: function (descriptor) {
-				return descriptor.value === ".netjsondate";
+			appliesTo: function (attrConfig) {
+				return attrConfig.value === ".netjsondate";
 			},
-			convert: function (parent, key, value, attributes, descriptor) {
+			convert: function (parent, descriptor, value) {
 				var match = /\/Date\((-?\d+)\)\//.exec(value);
 				return match ? new Date(Number(match[1])) : value;
 			}
@@ -236,27 +239,39 @@ Backbone.easyext = (function () {
 		this.model = model;
 		this.initialize();
 	};
+
+
 	_.extend(AttributeConvertor.prototype, {
 		initialize: function () {
-			this.descriptors = _.isFunction(this.model.attributeConversion) ? this.model.attributeConversion() : {};
+			var modelConfig = _.isFunction(this.model.attributeConversion) ? this.model.attributeConversion() : {};
+			this.descriptors = [];
+			this.descriptorsByKey = {};
+			for (var key in modelConfig) {
+				var attrConfig = modelConfig[key];
+				var convertor = _.detect(convertors, function (c) { return c.appliesTo(attrConfig); });
+				if (!convertor) attrConfigError(key, attrConfig, "Could not find suitable convertor");
+				var descriptor = _.extend({ key: key, convertor: convertor }, attrConfig);
+				this.descriptors.push(descriptor);
+				this.descriptorsByKey[key] = descriptor;
+			}
 		},
-		convert: function (key, value, attributes) {
-			var descriptor = this.descriptors[key];
-			return descriptor ? this.convertValue(key, value, attributes, descriptor) : value;
+		attrConfigError: function (key, config, message) {
+			throw new Error("The config for converting attribute '" + key + "' is invalid. "
+				+ message + "\nPlease check the config supplied via your model's attributeConversion method");
 		},
-		convertValue: function (key, value, attributes, descriptor) {
-			var convertor = _.detect(convertors, function (c) {
-				return c.canConvert(descriptor);
-			});
-			return convertor ? convertor.convert(this.model, key, value, attributes, descriptor) : value;
+		convert: function (key, value) {
+			var descriptor = this.descriptorsByKey[key];
+			return (descriptor && descriptor.convertor)
+				? descriptor.convertor.convert(this.model, descriptor, value)
+				: value;
 		}
 	});
 
 	// Mix-in used to extend Model with attribute conversion functionality
 	var AttributeConversion = {
-		prepareValue: function (key, value, attributes) {
+		prepareValue: function (key, value) {
 			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
-			return this.attributeConvertor.convert(key, value, attributes);
+			return this.attributeConvertor.convert(key, value);
 		}
 	};
 
