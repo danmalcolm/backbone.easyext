@@ -330,6 +330,9 @@ describe("AttributeConversion", function () {
 	describe("collection attributes", function () {
 
 		var Order = Model.extend({
+			defaults: {
+				lines: []
+			},
 			attributeConversion: function () {
 				return {
 					lines: { collection: OrderLineCollection }
@@ -389,9 +392,6 @@ describe("AttributeConversion", function () {
 		describe("when creating parent without any data", function () {
 
 			var order = new Order({});
-			// FAILS - TODO - doesn't get initialised unless values set (ie prepareValue called),
-			// expect we'll need to get applications to add something to constructor / 
-			// initialize for one-off initialization
 			it("should create empty collection on model", function () {
 				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
 			});

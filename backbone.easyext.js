@@ -132,7 +132,6 @@ Backbone.easyext = (function () {
 	var standardConvertors = {
 		// converts raw object to a model instance using ctor specified by "model" property
 		modelConvertor: {
-			initializeModel: function (parent, descriptor) { },
 			appliesTo: function (attrConfig) {
 				return _.isFunction(attrConfig.model);
 			},
@@ -166,12 +165,6 @@ Backbone.easyext = (function () {
 		},
 		// creates a collection instance using ctor specified by "collection" property
 		collectionConvertor: {
-			initializeModel: function (parent, descriptor) {
-				if(!(descriptor.key in parent.attributes))
-				{
-					parent.attributes[descriptor.key] = new descriptor.collection([], { parent: parent });
-				}
-			},
 			appliesTo: function (attrConfig) {
 				return _.isFunction(attrConfig.collection);
 			},
@@ -228,7 +221,6 @@ Backbone.easyext = (function () {
 		// Converts dates from string value like "/Date(1361441768427)/" used by Microsoft's JSON serializers and JSON.Net: 
 		// http://weblogs.asp.net/bleroy/archive/2008/01/18/dates-and-json.aspx
 		dotNetDateConvertor: {
-			initializeModel: function (parent, descriptor) { },
 			appliesTo: function (attrConfig) {
 				return attrConfig.value === ".netjsondate";
 			},
@@ -246,7 +238,6 @@ Backbone.easyext = (function () {
 	var AttributeConvertor = function (model) {
 		this.model = model;
 		this.initialize();
-		this.initializeModel();
 	};
 
 
@@ -267,14 +258,6 @@ Backbone.easyext = (function () {
 		attrConfigError: function (key, config, message) {
 			throw new Error("The config for converting attribute '" + key + "' is invalid. "
 				+ message + "\nPlease check the config supplied via your model's attributeConversion method");
-		},
-		initializeModel: function () {
-			for (var i = 0, l = this.descriptors.length; i < l; i++) {
-				var descriptor = this.descriptors[i];
-				if (descriptor.convertor) {
-					descriptor.convertor.initializeModel(this.model, descriptor);
-				}
-			}
 		},
 		convert: function (key, value) {
 			var descriptor = this.descriptorsByKey[key];
