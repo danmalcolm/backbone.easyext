@@ -246,17 +246,8 @@ Backbone.easyext = (function () {
 		initialize: function () {
 			this.descriptors = this.getDescriptors();
 		},
-		// Gets descriptors created from the model's attributeConversion property
-		// These are cached against the model's prototype the first time that
-		// descriptors are initialised for a given model type. We only want to invoke
-		// a model's attributeConversion function once, as it may contain inline
-		// creation of Backbone Model and Collection types.
 		getDescriptors: function () {
-			var descriptors = this.model.constructor.prototype._attributeConversionDescriptors;
-			if (_.isObject(descriptors))
-				return descriptors;
-			
-			descriptors = { };
+			var descriptors = {};
 			var modelConfig = this.model.attributeConversion || {};
 			if (_.isFunction(modelConfig))
 				modelConfig = modelConfig();
@@ -269,7 +260,6 @@ Backbone.easyext = (function () {
 					descriptors[key] = descriptor;
 				}
 			}
-			this.model.constructor.prototype._attributeConversionDescriptors = descriptors;
 			return descriptors;
 		},
 		attrConfigError: function (key, config, message) {
