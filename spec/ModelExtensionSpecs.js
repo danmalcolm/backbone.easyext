@@ -5,7 +5,7 @@ describe("Dirty Tracking", function () {
 	describe("Checking dirty state using DirtyTracker directly", function () {
 
 		var Product = Backbone.Model.extend({});
-		
+
 		var simulateSuccessfulSync = function (data) {
 			spyOn(Backbone, 'sync').andCallFake(function (method, model, options) {
 				options.success(data);
@@ -76,7 +76,7 @@ describe("Dirty Tracking", function () {
 					return model.id;
 				}
 			});
-			
+
 			var review1, review2;
 			beforeEach(function () {
 				var reviews = [
@@ -327,7 +327,7 @@ describe("AttributeConversion", function () {
 		});
 	});
 
-	describe("collection attributes", function () {
+	describe("custom collection attributes", function () {
 
 		var Order = Model.extend({
 			defaults: {
@@ -378,6 +378,10 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines").at(0).get("product").get("name")).toEqual("Apple");
 				expect(order.get("lines").at(1).get("product").get("name")).toEqual("Pear");
 			});
+
+			it("should convert nested models from models in collection", function () {
+				expect(order.get("lines").at(0).get("product") instanceof Product).toBeTruthy();
+			});
 		});
 
 		// Note that the models defaults property needs to be set to enable empty collections
@@ -390,7 +394,7 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
 			});
 		});
-		
+
 		describe("when creating parent without any data", function () {
 
 			var order = new Order({});
@@ -398,7 +402,7 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
 			});
 		});
-		
+
 		describe("when updating attributes with data from server", function () {
 
 			describe("when collection models are non-persistent and data contains persistent data for same models", function () {
@@ -438,6 +442,96 @@ describe("AttributeConversion", function () {
 
 	});
 
+	describe("Attributes extending Backbone.Collection", function () {
+
+		var Order = Model.extend({
+			defaults: {
+				lines: []
+			},
+			attributeConversion: function () {
+				return {
+					lines: { collection: Backbone.Collection.extend({ model: OrderLine }) }
+				};
+			},
+			correlationAttrs: ["date"]
+		});
+		var OrderLine = Model.extend({
+			attributeConversion: function () {
+				return {
+					product: { model: Product }
+				};
+			},
+			correlationAttrs: ["product", "quantity"]
+		});
+		var Product = Backbone.Model.extend({
+			correlationAttrs: ["ean"]
+		});
+
+		describe("when creating parent", function () {
+
+			var order = new Order({
+				lines: [{ product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+					{ product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2}]
+			});
+
+			it("should convert array to collection", function () {
+				expect(order.get("lines") instanceof Backbone.Collection).toBeTruthy();
+			});
+
+			it("should convert models in collection to model type specified for collection", function () {
+				expect(order.get("lines").at(0) instanceof OrderLine).toBeTruthy();
+			});
+		});
+
+		describe("when creating multiple parent instances", function () {
+
+			var order1 = new Order({
+				lines: [{ product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+					{ product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2}]
+			});
+
+			var order2 = new Order({
+				lines: [{ product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+					{ product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2}]
+			});
+
+
+			it("collections should be of same type", function () {
+				var collection1 = order1.get("lines");
+				var collection2 = order2.get("lines");
+				expect(collection1.constructor).toBe(collection2.constructor);
+			});
+
+		});
+		describe("when updating attributes with data from server", function () {
+
+			describe("when collection models are non-persistent and data contains persistent data for same models", function () {
+				// After sync, data from server will contain id values
+				var order = new Order({
+					lines: [
+							{ product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+							{ product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2 }
+						]
+				});
+				var originalCollection = order.get("lines");
+
+				order.set({
+					lines: [
+							{ id: 13344, product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+							{ id: 13345, product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2 }
+						]
+				});
+
+				it("should retain original collection instance", function () {
+					expect(order.get("lines")).toBe(originalCollection);
+				});
+
+			});
+
+		});
+
+	});
+
 	describe(".net date value attributes", function () {
 
 		var Order = Model.extend({
@@ -458,6 +552,20 @@ describe("AttributeConversion", function () {
 				expect(order.get("date")).toEqual("/Date(XXXX)/");
 			});
 		});
+	});
+
+	describe("Backbone assumptions", function () {
+
+		it("extending 2 different Models should have different prototypes", function() {
+			var Model1 = Backbone.Model.extend({ something: 1 });
+			var Model2 = Backbone.Model.extend({ something: 2 });
+			var model1 = new Model1();
+			var model2 = new Model2();
+			expect(model1.constructor).not.toBe(model2.constructor);
+			expect(model1.constructor.prototype).not.toBe(model2.constructor.prototype);
+		});
+
+
 	});
 
 
