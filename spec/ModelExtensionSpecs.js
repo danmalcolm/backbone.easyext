@@ -5,7 +5,7 @@ describe("Dirty Tracking", function () {
 	describe("Checking dirty state using DirtyTracker directly", function () {
 
 		var Product = Backbone.Model.extend({});
-		
+
 		var simulateSuccessfulSync = function (data) {
 			spyOn(Backbone, 'sync').andCallFake(function (method, model, options) {
 				options.success(data);
@@ -76,7 +76,7 @@ describe("Dirty Tracking", function () {
 					return model.id;
 				}
 			});
-			
+
 			var review1, review2;
 			beforeEach(function () {
 				var reviews = [
@@ -327,7 +327,7 @@ describe("AttributeConversion", function () {
 		});
 	});
 
-	describe("collection attributes", function () {
+	describe("custom collection attributes", function () {
 
 		var Order = Model.extend({
 			defaults: {
@@ -378,6 +378,10 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines").at(0).get("product").get("name")).toEqual("Apple");
 				expect(order.get("lines").at(1).get("product").get("name")).toEqual("Pear");
 			});
+
+			it("should convert nested models from models in collection", function () {
+				expect(order.get("lines").at(0).get("product") instanceof Product).toBeTruthy();
+			});
 		});
 
 		// Note that the models defaults property needs to be set to enable empty collections
@@ -390,7 +394,7 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
 			});
 		});
-		
+
 		describe("when creating parent without any data", function () {
 
 			var order = new Order({});
@@ -398,7 +402,7 @@ describe("AttributeConversion", function () {
 				expect(order.get("lines") instanceof OrderLineCollection).toBeTruthy();
 			});
 		});
-		
+
 		describe("when updating attributes with data from server", function () {
 
 			describe("when collection models are non-persistent and data contains persistent data for same models", function () {
@@ -437,7 +441,7 @@ describe("AttributeConversion", function () {
 		});
 
 	});
-
+	
 	describe(".net date value attributes", function () {
 
 		var Order = Model.extend({
@@ -458,6 +462,20 @@ describe("AttributeConversion", function () {
 				expect(order.get("date")).toEqual("/Date(XXXX)/");
 			});
 		});
+	});
+
+	describe("Backbone assumptions", function () {
+
+		it("extending 2 different Models should have different prototypes", function() {
+			var Model1 = Backbone.Model.extend({ something: 1 });
+			var Model2 = Backbone.Model.extend({ something: 2 });
+			var model1 = new Model1();
+			var model2 = new Model2();
+			expect(model1.constructor).not.toBe(model2.constructor);
+			expect(model1.constructor.prototype).not.toBe(model2.constructor.prototype);
+		});
+
+
 	});
 
 

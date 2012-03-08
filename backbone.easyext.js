@@ -113,8 +113,8 @@ Backbone.easyext = (function () {
 				}
 				if (value) {
 					if (value.attributes && _.isArray(value.correlationAttrs)) {
-						// Looks like a model with correlationAttrs so add nested object
-						// containing values
+						// Looks like a model with correlationAttrs so add a 
+						// nested object with the specified attributes
 						value = this.getDataToCompare(value, value.attributes);
 					} else if (value && _.isFunction(value.toJSON)) {
 						value = value.toJSON();
@@ -185,7 +185,8 @@ Backbone.easyext = (function () {
 					this.mergeModels(collection, value);
 				} else {
 					// Convert array to collection
-					collection = new descriptor.collection(value, { parent: parent });
+					var options = { parent: parent };
+					collection = new descriptor.collection(value, options);
 				}
 				return collection;
 			},
@@ -243,24 +244,30 @@ Backbone.easyext = (function () {
 
 	_.extend(AttributeConvertor.prototype, {
 		initialize: function () {
-			var modelConfig = _.isFunction(this.model.attributeConversion) ? this.model.attributeConversion() : {};
-			this.descriptors = [];
-			this.descriptorsByKey = {};
-			for (var key in modelConfig) {
-				var attrConfig = modelConfig[key];
-				var convertor = _.detect(convertors, function (c) { return c.appliesTo(attrConfig); });
-				if (!convertor) attrConfigError(key, attrConfig, "Could not find suitable convertor");
-				var descriptor = _.extend({ key: key, convertor: convertor }, attrConfig);
-				this.descriptors.push(descriptor);
-				this.descriptorsByKey[key] = descriptor;
+			this.descriptors = this.getDescriptors();
+		},
+		getDescriptors: function () {
+			var descriptors = {};
+			var modelConfig = this.model.attributeConversion || {};
+			if (_.isFunction(modelConfig))
+				modelConfig = modelConfig();
+			if (_.isObject(modelConfig)) {
+				for (var key in modelConfig) {
+					var attrConfig = modelConfig[key];
+					var convertor = _.detect(convertors, function (c) { return c.appliesTo(attrConfig); });
+					if (!convertor) attrConfigError(key, attrConfig, "Could not find suitable convertor");
+					var descriptor = _.extend({ key: key, convertor: convertor }, attrConfig);
+					descriptors[key] = descriptor;
+				}
 			}
+			return descriptors;
 		},
 		attrConfigError: function (key, config, message) {
 			throw new Error("The config for converting attribute '" + key + "' is invalid. "
 				+ message + "\nPlease check the config supplied via your model's attributeConversion method");
 		},
 		convert: function (key, value) {
-			var descriptor = this.descriptorsByKey[key];
+			var descriptor = this.descriptors[key];
 			return (descriptor && descriptor.convertor)
 				? descriptor.convertor.convert(this.model, descriptor, value)
 				: value;
