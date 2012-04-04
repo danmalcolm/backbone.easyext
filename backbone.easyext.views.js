@@ -1,49 +1,44 @@
 (function () {
 
-	// Helper function to get a value from an object as a property
-	// or as a function.
-	var getValue = function (object, prop) {
-		if (!(object && object[prop])) return null;
-		return _.isFunction(object[prop]) ? object[prop]() : object[prop];
+	var childViewsConfig, defaultChildViewsConfig;
+	childViewsConfig = defaultChildViewsConfig = {
+		cleanUpView: function (view) {
+
+		}
 	};
 
-	// Manages a list of child views belonging to a view
-	var ChildViewHelper = function (parentView) {
-		this.childViewDescriptors = {};
-		this.initialised = false;
-		this.parentView = parentView;
+
+
+	// Handlers - responsible for creating child view instances based
+	// on elements defined in the parent view
+
+	// Handles creation of child views using explicitly registered
+	// view definitions, usually combining some globally defined
+	// and others on the parent view itself
+	var RegisteredChildViewHandler = function (childViewConfig) {
+		this.descriptors = {};
+		_.each(childViewConfig, function (value, name) {
+			this.addDescriptor(name, value);
+		}, this);
 	};
-
-	_.extend(ChildViewHelper.prototype, {
-
-		// Ensures that child views have been initialised based on the view's childViews property
-		ensureChildViews: function () {
-			if (!this.initialised && this.parentView.childViews) {
-				var childViews = getValue(this.parentView, 'childViews');
-				_.each(childViews, function (config, name) {
-					this.addChildViewDescriptor(name, config);
-				}, this);
-			}
-			this.initialised = true;
-		},
-
-		// Register a child view. The createChildView function will be called in the context
-		// of the current view
-		addChildViewDescriptor: function (name, config) {
+	_.extend(RegisteredChildViewHandler.prototype, {
+		// Registers definition of a child view
+		addDescriptor: function (name, config) {
 			var descriptor = {
 				name: name,
 				view: config.view,
 				options: config.options || {},
 				created: null,
 				active: [],
-				reset: function () {
+				cleanUp: function () {
 					_.each(this.active, function (view) {
-						view.close();
+						childViewsConfig.cleanUpView(view);
 					});
 					this.created = null;
 					this.active = [];
 				},
 				_createOptions: function () {
+					// If options is a function, invoke in context of the parent view
 					return _.isFunction(this.options) ? this.options.apply(this.parentView) : _.clone(this.options);
 				},
 				_create: function (el) {
@@ -60,89 +55,134 @@
 				},
 				onRender: config.onRender
 			};
-			this.childViewDescriptors[name] = descriptor;
+			this.descriptors[name] = descriptor;
+		},
+		handle: function (parentView, $container, config) {
+			// Find descriptor matching value in data-childview attribute
+			var descriptor = this.descriptors[config];
+			if (descriptor) {
+				// Cleanup and remove references to any active child views that are about to be recreated
+				descriptor.cleanUp();
+				var created = descriptor.createViews($container); // return view or array of views
+				var views = _.isArray(created) ? created : [created];
+				for (var i = 0, l = views.length; i < l; i++) {
+					var view = views[i];
+					if (!view) {
+						throw new Error("Child view instance not created for " + descriptor.name);
+					}
+					if (parentView.onCreateChildView)
+						parentView.onCreateChildView.call(this.parentView, view);
+					view.render();
+				}
+				return true;
+			} else {
+				return false;
+			}
+		},
+		getCreated: function (name) {
+			var descriptor = this.descriptors[name];
+			if (descriptor) {
+				return descriptor.created;
+			}
+		},
+		cleanUp: function () {
+			_.each(this.descriptors, function (descriptor) {
+				descriptor.cleanUp();
+			});
+		}
+	});
+
+
+
+	// Helper function to get a value from an object as a property
+	// or as a function.
+	var getValue = function (object, prop) {
+		if (!(object && object[prop])) return null;
+		return _.isFunction(object[prop]) ? object[prop]() : object[prop];
+	};
+
+	// Manages a list of child views belonging to a view
+	var ChildViewHelper = function (parentView) {
+		this.parentView = parentView;
+		this.handlers = this.initializeHandlers();
+	};
+
+	_.extend(ChildViewHelper.prototype, {
+
+		initializeHandlers: function () {
+			// separation of handlers allows different strategies to be used
+			// but we've only got one kind atm
+			return [new RegisteredChildViewHandler(getValue(this.parentView, "childViews"))];
 		},
 
-		// Render views, filtering to views if names supplied, e.g. render("aview", "another"), e.g. 
 		render: function () {
-			this.ensureChildViews();
 			if (!this.$containers) {
 				this.$containers = this.parentView.$("[data-childview]");
 			}
 			var self = this;
 			this.$containers.each(function () {
 				var $container = $(this);
-				var name = $container.attr("data-childview");
-				var descriptor = self.childViewDescriptors[name];
-				if (descriptor) {
-					self.renderChildView(descriptor, $container);
-				}
+				var config = $container.attr("data-childview");
+				self.handle($container, config);
 			});
 		},
 
-		renderChildView: function (descriptor, $container) {
-			descriptor.reset();
-			var created = descriptor.createViews($container); // return view or array of views
-			var views = _.isArray(created) ? created : [created];
-			var elements = [];
-			for (var i = 0, l = views.length; i < l; i++) {
-				var view = views[i];
-				if (!view) {
-					throw new Error("Child view instance not created for " + descriptor.name);
-				}
-				if (this.parentView.onCreateChildView)
-					this.parentView.onCreateChildView.call(this.parentView, view);
-				view.render();
-				if (descriptor.onRender)
-					descriptor.onRender.call(this.parentView, view);
-				elements.push(view.el);
+		handle: function ($container, config) {
+			// Use first available handler
+			for (var i = 0, l = this.handlers.length; i < l; i++) {
+				if (this.handlers[i].handle(this.parentView, $container, config)) break;
 			}
-			//			if (descriptor.displayType == "append") {
-			//				$(elements).appendTo($container);
-			//				_.each(views, function (v) {
-			//					// call ready function after element added to DOM
-			//					if (_.isFunction(v.ready)) v.ready.call(v);
-			//				});
-			//			}
-
-
-			return created;
 		},
 
-		activeChildViews: function () {
-			var views = [];
-			_.each(this.childViewDescriptors, function (descriptor) {
-				if (descriptor.active) {
-					views.push.apply(views, descriptor.active);
-				};
-			});
+		getActiveViewOrViews: function (name) {
+			var result;
+			for (var i = 0, l = this.handlers.length; i < l; i++) {
+				result = this.handlers[i].getCreated(name);
+				if (result) break;
+			}
+			return result;
+		},
+		// Gets instance of child view that has been created
+		getChildView: function (name) {
+			var view = this.getActiveViewOrViews(name);
+			if (_.isArray(view)) {
+				throw new Error(name + ' should reference an individual child view, but appears to reference multiple view instances. Use the "getChildViews" function to reference multiple child view instances');
+			}
+			return view;
+		},
+
+		// Gets instances of a sequence of child views that has been created
+		getChildViews: function (name) {
+			var views = this.getActiveViewOrViews(name);
+			if (!_.isArray(views)) {
+				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to reference a single child view instance');
+			}
 			return views;
 		},
 
-		getCreatedChildViews: function (name) {
-			var descriptor = this.childViewDescriptorsByName[name];
-			if (!descriptor) {
-				throw new Error("No child views defined with the name " + name);
+		cleanUp: function () {
+			for (var i = 0, l = this.handlers.length; i < l; i++) {
+				this.handlers[i].cleanUp();
 			}
-			var created = descriptor.created;
-			if (_.isNull(created)) {
-				throw new Error("Child views have not yet been created for child view " + name + ". Child view instances can only be accessed after they have been rendered");
-			}
-			return created;
-		},
-
-		close: function () {
-			_.each(this.childViewDescriptors, function (descriptor) {
-				descriptor.reset();
-			});
 		}
 	});
 
+	// Mix-in used to extend View with child view functionality
+	var ChildViews = {
+		prepareValue: function (key, value) {
+			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
+			return this.attributeConvertor.convert(key, value);
+		}
+	};
 
 	// Define a scope for extensions
 	var root = this;
 	root.Backbone.easyext = root.Backbone.easyext || {};
 	root.Backbone.easyext.views = {
-		ChildViewHelper: ChildViewHelper
+		ChildViewHelper: ChildViewHelper,
+		// Configurable behaviour, pass null to reset to default settings
+		configureChildViews: function (config) {
+			childViewsConfig = _.extend(_.clone(defaultChildViewsConfig), config);
+		}
 	};
 })();

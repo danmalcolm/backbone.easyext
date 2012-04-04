@@ -5,6 +5,9 @@ beforeEach(function () {
 			return collection.length === models.length && _.all(collection, function (model) {
 				return _.include(models, model);
 			});
+		},
+		toStartWith: function (other) {
+			return this.actual.indexOf(other) === 0;
 		}
 	});
 });
