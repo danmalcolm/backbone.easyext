@@ -37,19 +37,40 @@
 					this.created = null;
 					this.active = [];
 				},
-				_createOptions: function () {
-					// If options is a function, invoke in context of the parent view
-					return _.isFunction(this.options) ? this.options.apply(this.parentView) : _.clone(this.options);
+				createOptions: function () {
+					// If options specified via a function, invoke in context of the parent view
+					return _.isFunction(this.options) ?
+						this.options.apply(this.parentView)
+						: _.clone(this.options);
 				},
-				_create: function (el) {
-					var options = this._createOptions();
-					options.el = el;
+				create: function ($el) {
+					var options = this.createOptions();
+					if (_.isArray(options)) {
+						return this.createSequence(options, $el);
+					} else {
+						return this.createSingle(options, $el);
+					}
+				},
+				createSingle: function (options, $el) {
+					options.el = $el;
 					return new this.view(options);
 				},
-				createViews: function (el) {
+				createSequence: function (optionsList, $el) {
+					var views = _.map(optionsList, function (options) {
+						return new this.view(options);
+					}, this);
+					var elements = _.map(views, function (view) {
+						return view.el;
+					});
+					// append to container element
+					$el.empty();
+					$(elements).appendTo($el);
+					return views;
+				},
+				createViews: function ($el) {
 					// Track items returned from create function - we can then distinguish
 					// between individual views and collections of views
-					this.created = this._create(el);
+					this.created = this.create($el);
 					this.active = _.isArray(this.created) ? this.created : [this.created];
 					return this.created;
 				},
@@ -91,8 +112,6 @@
 			});
 		}
 	});
-
-
 
 	// Helper function to get a value from an object as a property
 	// or as a function.
@@ -142,11 +161,12 @@
 			}
 			return result;
 		},
+
 		// Gets instance of child view that has been created
 		getChildView: function (name) {
 			var view = this.getActiveViewOrViews(name);
 			if (_.isArray(view)) {
-				throw new Error(name + ' should reference an individual child view, but appears to reference multiple view instances. Use the "getChildViews" function to reference multiple child view instances');
+				throw new Error(name + ' should reference an individual child view, but actually references multiple view instances. Use the "getChildViews" function to reference multiple child view instances');
 			}
 			return view;
 		},
@@ -169,10 +189,7 @@
 
 	// Mix-in used to extend View with child view functionality
 	var ChildViews = {
-		prepareValue: function (key, value) {
-			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
-			return this.attributeConvertor.convert(key, value);
-		}
+
 	};
 
 	// Define a scope for extensions
