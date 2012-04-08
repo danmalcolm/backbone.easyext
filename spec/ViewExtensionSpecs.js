@@ -58,7 +58,7 @@ describe("Child View Management", function () {
 
 	describe("Child view configuration", function () {
 
-		describe("when attaching single child view to element specified via default data-childview selector", function () {
+		describe("when attaching single child views to elements specified via default data-childview selector", function () {
 
 			var parent;
 			beforeEach(function () {
@@ -78,6 +78,30 @@ describe("Child View Management", function () {
 				parent.render();
 				expect(parent.$el.children('[data-childview="child1"]').text()).toStartWith("ChildView - message:I am child 1");
 				expect(parent.$el.children('[data-childview="child2"]').text()).toStartWith("ChildView - message:I am child 2");
+			});
+
+		});
+
+		describe("when attaching single child views to elements specified via custom selector", function () {
+
+			var parent;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div class="child1"></div>\n'
+			+ '<div class="child2"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, selector: '[class=child1]', options: { message: "I am child 1"} },
+					child2: { view: ChildView, selector: '[class=child2]', options: { message: "I am child 2"} }
+				};
+				parent = createParent({}, childViews, html);
+			});
+
+			it("should create each child view, attached to container element", function () {
+				parent.render();
+				expect(parent.$el.children('[class=child1]').text()).toStartWith("ChildView - message:I am child 1");
+				expect(parent.$el.children('[class=child2]').text()).toStartWith("ChildView - message:I am child 2");
 			});
 
 		});
