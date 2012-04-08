@@ -158,7 +158,7 @@
 			return [new RegisteredChildViewHandler(this.parentView, getValue(this.parentView, "childViews"))];
 		},
 
-		render: function () {
+		attach: function () {
 			if (!this.$containers) {
 				this.$containers = this.parentView.$("[data-childview]");
 			}

@@ -3,9 +3,9 @@ describe("Child View Management", function () {
 	// Configuration and view supertype for a typical application	
 	var BaseView = Backbone.View.extend({
 
-		renderChildViews: function () {
+		attachChildViews: function () {
 			var helper = this.childViewHelper || (this.childViewHelper = new Backbone.easyext.views.ChildViewHelper(this));
-			return helper.render.apply(helper, arguments);
+			return helper.attach.apply(helper, arguments);
 		},
 
 		close: function () {
@@ -18,7 +18,7 @@ describe("Child View Management", function () {
 		render: function () {
 			// Most tests specify $el directly, but note that renderChildViews
 			// should be called after the content of $el has been generated. 
-			this.renderChildViews();
+			this.attachChildViews();
 		}
 	});
 
