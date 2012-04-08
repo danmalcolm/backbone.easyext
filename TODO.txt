@@ -8,3 +8,5 @@ Make autorender an option to specify that views are rendered
 Options includes a selector - don't have to use data-childview
 
 What happens when attaching for second time?
+
+RCVH finds the elements within the view el and renders, finding element is responsibility of handlers

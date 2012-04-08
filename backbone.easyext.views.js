@@ -4,10 +4,12 @@
 	childViewsConfig = defaultChildViewsConfig = {
 		cleanUpView: function (view) {
 
-		}
+		},
+		defaultElementSelector: function (name) {
+			return '[data-childview=' + name + ']';
+		},
+		autoRender: true
 	};
-
-
 
 	// Handlers - responsible for creating child view instances based
 	// on elements defined in the parent view
@@ -17,45 +19,30 @@
 	// and others on the parent view itself
 	var RegisteredChildViewHandler = function (parentView, childViewConfig) {
 		this.parentView = parentView;
-		this.descriptors = {};
+		this.descriptors = [];
+		this.descriptorsByName = {};
 		_.each(childViewConfig, function (value, name) {
 			var descriptor = new RegisteredChildViewDescriptor(name, parentView, value);
-			this.descriptors[name] = descriptor;
+			this.descriptors.push(descriptor);
+			this.descriptorsByName[name] = descriptor;
 		}, this);
 	};
 	_.extend(RegisteredChildViewHandler.prototype, {
-		handle: function (parentView, $container, config) {
-			// Find descriptor matching value in data-childview attribute
-			var descriptor = this.descriptors[config];
-			if (descriptor) {
-				// Cleanup and remove references to any active child views that are about to be recreated
-				descriptor.cleanUp();
-				var created = descriptor.createViews($container); // return view or array of views
-				var views = _.isArray(created) ? created : [created];
-				for (var i = 0, l = views.length; i < l; i++) {
-					var view = views[i];
-					if (!view) {
-						throw new Error("Child view instance not created for " + descriptor.name);
-					}
-					if (parentView.onCreateChildView)
-						parentView.onCreateChildView.call(this.parentView, view);
-					view.render();
-				}
-				return true;
-			} else {
-				return false;
+		handle: function () {
+			for (var i = 0, l = this.descriptors.length; i < l; i++) {
+				this.descriptors[i].attach();
 			}
 		},
 		getCreated: function (name) {
-			var descriptor = this.descriptors[name];
+			var descriptor = this.descriptorsByName[name];
 			if (descriptor) {
 				return descriptor.created;
 			}
 		},
 		cleanUp: function () {
-			_.each(this.descriptors, function (descriptor) {
-				descriptor.cleanUp();
-			});
+			for (var i = 0, l = this.descriptors.length; i < l; i++) {
+				this.descriptors[i].cleanUp();
+			}
 		}
 	});
 
@@ -67,7 +54,37 @@
 		this.created = null;
 		this.active = [];
 	};
-	_.extend(RegisteredChildViewDescriptor.prototype,{
+	_.extend(RegisteredChildViewDescriptor.prototype, {
+		attach: function () {
+			if (!this.$container) {
+				var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
+				this.$container = this.parentView.$(selector).first();
+			}
+			this.cleanUp();
+			// Track items returned from create function - we can then distinguish
+			// between single views and sequences of views within the getChildView
+			// and getChildViews functions
+			this.created = this.create(this.$container);
+			this.active = _.isArray(this.created) ? this.created : [this.created];
+
+			for (var i = 0, l = this.active.length; i < l; i++) {
+				var view = this.active[i];
+				if (this.parentView.onCreateChildView)
+					this.parentView.onCreateChildView.call(this.parentView,view);
+				var render = this.config.autoRender || (this.config.autoRender !== false && childViewsConfig.autoRender);
+				if (render) {
+					view.render();
+				}
+			}
+			
+			// If we are managing a sequence of views, then they are added within
+			// the container element (we don't need to do anything with single views
+			// as they are attached directly to the container element when they are created).
+			if (_.isArray(this.created)) {
+				this.$container.empty();
+				$(_.pluck(this.created, "el")).appendTo(this.$container);
+			}
+		},
 		cleanUp: function () {
 			_.each(this.active, function (view) {
 				// Use centrally configured mechanism to clean up child view
@@ -76,6 +93,14 @@
 			this.created = null;
 			this.active = [];
 		},
+		create: function ($el) {
+			var options = this.createOptions();
+			if (_.isArray(options)) {
+				return this.createSequence(options, $el);
+			} else {
+				return this.createSingle(options, $el);
+			}
+		},
 		createOptions: function () {
 			// If options specified via a function, invoke in context of the parent view
 			var options = _.isFunction(this.config.options) ?
@@ -83,8 +108,9 @@
 				: _.clone(this.config.options);
 
 			if (this.config.collection) {
-				// Config specifies that child view sequence should be created based on collection 
-				// belonging to parent view's model, so we create a sequence of options
+				// Config specifies that sequence of child views should be attached 
+				// based on models in collection belonging to parent view's model,
+				// so we create a sequence of options
 				if (_.isArray(options)) {
 					throw new Error('The collection setting "' + this.config.collection + '" for child view "' + this.name + '" is not valid because a sequence of options were specified. It is not possible to generate multiple child views using both an array of options and a collection');
 				}
@@ -99,14 +125,6 @@
 			}
 			return options;
 		},
-		create: function ($el) {
-			var options = this.createOptions();
-			if (_.isArray(options)) {
-				return this.createSequence(options, $el);
-			} else {
-				return this.createSingle(options, $el);
-			}
-		},
 		createSingle: function (options, $el) {
 			options.el = $el;
 			return new this.config.view(options);
@@ -117,23 +135,8 @@
 			}, this);
 			return views;
 		},
-		appendSequence: function (views, $el) {
-			var childEls = _.map(views, function (view) {
-				return view.el;
-			});
-			// append to container element
-			$el.empty();
-			$(childEls).appendTo($el);
-		},
-		createViews: function ($el) {
-			// Track items returned from create function - we can then distinguish
-			// between individual views and collections of views
-			this.created = this.create($el);
-			this.active = _.isArray(this.created) ? this.created : [this.created];
-			if (_.isArray(this.created)) {
-				this.appendSequence(this.created, $el);
-			}
-			return this.created;
+		appendSequence: function (views) {
+			
 		}
 	});
 
@@ -153,27 +156,14 @@
 	_.extend(ChildViewHelper.prototype, {
 
 		initializeHandlers: function () {
-			// separation of handlers allows different strategies to be used
-			// but we've only got one kind atm
+			// separation of handlers allows different strategies to be used to locate
+			// elements and attach views
 			return [new RegisteredChildViewHandler(this.parentView, getValue(this.parentView, "childViews"))];
 		},
 
 		attach: function () {
-			if (!this.$containers) {
-				this.$containers = this.parentView.$("[data-childview]");
-			}
-			var self = this;
-			this.$containers.each(function () {
-				var $container = $(this);
-				var config = $container.attr("data-childview");
-				self.handle($container, config);
-			});
-		},
-
-		handle: function ($container, config) {
-			// Use first available handler
 			for (var i = 0, l = this.handlers.length; i < l; i++) {
-				if (this.handlers[i].handle(this.parentView, $container, config)) break;
+				this.handlers[i].handle(this.parentView);
 			}
 		},
 
