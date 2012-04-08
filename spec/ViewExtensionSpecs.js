@@ -47,10 +47,17 @@ describe("Child View Management", function () {
 		}
 	});
 
+	var ChildViewUsingModel = BaseView.extend({
+		render: function () {
+			this.$el.append('ChildView - message:' + this.options.message + ', name:' + this.model.get("name"));
+			return this;
+		}
+	});
+
 
 
 	describe("Child view configuration", function () {
-		
+
 		describe("when attaching single child view to element specified via default data-childview selector", function () {
 
 			var parent;
@@ -99,7 +106,36 @@ describe("Child View Management", function () {
 				expect(parent.$el.children('[data-childview="children"]').html()).toEqual(expected);
 			});
 
-		});		
+		});
+
+		describe("when attaching sequence of child views generated via collection attribute from parent view's model", function () {
+
+			var parent;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="children"></div>\n'
+			+ '</div>';
+				// Parent view with model containing collection attribute
+				var parentOptions = {
+					model: new Backbone.Model({
+						myCollection: new Backbone.Collection([{ name: "a" },{ name: "b" },{ name: "c" }])
+					})
+				};
+				var childViews = {
+					children: { view: ChildViewUsingModel, options: { message: "hi" }, collection: "myCollection" }
+				};
+
+				parent = createParent(parentOptions, childViews, html);
+			});
+
+			it("should attach each child view, appended to its container element", function () {
+				parent.render();
+				var expected = "<div>ChildView - message:hi, name:a</div><div>ChildView - message:hi, name:b</div><div>ChildView - message:hi, name:c</div>";
+				expect(parent.$el.children('[data-childview="children"]').html()).toEqual(expected);
+			});
+
+		});
 
 	});
 

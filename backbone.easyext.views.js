@@ -15,18 +15,20 @@
 	// Handles creation of child views using explicitly registered
 	// view definitions, usually combining some globally defined
 	// and others on the parent view itself
-	var RegisteredChildViewHandler = function (childViewConfig) {
+	var RegisteredChildViewHandler = function (parentView, childViewConfig) {
+		this.parentView = parentView;
 		this.descriptors = {};
 		_.each(childViewConfig, function (value, name) {
-			this.addDescriptor(name, value);
+			this.addDescriptor(name, parentView, value);
 		}, this);
 	};
 	_.extend(RegisteredChildViewHandler.prototype, {
 		// Registers definition of a child view
-		addDescriptor: function (name, config) {
+		addDescriptor: function (name, parentView, config) {
 			var descriptor = {
 				name: name,
-				view: config.view,
+				parentView: parentView,
+				config: config,
 				options: config.options || {},
 				created: null,
 				active: [],
@@ -39,9 +41,26 @@
 				},
 				createOptions: function () {
 					// If options specified via a function, invoke in context of the parent view
-					return _.isFunction(this.options) ?
+					var options = _.isFunction(this.options) ?
 						this.options.apply(this.parentView)
 						: _.clone(this.options);
+
+					if (this.config.collection) {
+						// Config specifies that child view sequence should be created based on collection 
+						// belonging to parent view's model, so we create a sequence of options
+						if (_.isArray(options)) {
+							throw new Error('The collection setting "' + this.config.collection + '" for child view "' + this.name + '" is not valid because a sequence of options were specified. It is not possible to generate multiple child views using both an array of options and a collection');
+						}
+						var collection = this.parentView.model ? this.parentView.model.get(this.config.collection) : null;
+						if (collection) {
+							options = collection.map(function (model) {
+								var itemOptions = _.clone(options);
+								itemOptions.model = model;
+								return itemOptions;
+							});
+						}
+					}
+					return options;
 				},
 				create: function ($el) {
 					var options = this.createOptions();
@@ -53,25 +72,30 @@
 				},
 				createSingle: function (options, $el) {
 					options.el = $el;
-					return new this.view(options);
+					return new this.config.view(options);
 				},
 				createSequence: function (optionsList, $el) {
 					var views = _.map(optionsList, function (options) {
-						return new this.view(options);
+						return new this.config.view(options);
 					}, this);
-					var elements = _.map(views, function (view) {
+					return views;
+				},
+				appendSequence: function (views, $el) {
+					var childEls = _.map(views, function (view) {
 						return view.el;
 					});
 					// append to container element
 					$el.empty();
-					$(elements).appendTo($el);
-					return views;
+					$(childEls).appendTo($el);
 				},
 				createViews: function ($el) {
 					// Track items returned from create function - we can then distinguish
 					// between individual views and collections of views
 					this.created = this.create($el);
 					this.active = _.isArray(this.created) ? this.created : [this.created];
+					if (_.isArray(this.created)) {
+						this.appendSequence(this.created, $el);
+					}
 					return this.created;
 				},
 				onRender: config.onRender
@@ -131,7 +155,7 @@
 		initializeHandlers: function () {
 			// separation of handlers allows different strategies to be used
 			// but we've only got one kind atm
-			return [new RegisteredChildViewHandler(getValue(this.parentView, "childViews"))];
+			return [new RegisteredChildViewHandler(this.parentView, getValue(this.parentView, "childViews"))];
 		},
 
 		render: function () {
