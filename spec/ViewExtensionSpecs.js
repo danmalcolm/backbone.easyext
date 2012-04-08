@@ -82,6 +82,33 @@ describe("Child View Management", function () {
 
 		});
 
+		describe("when attaching single child views to multiple elements using function to vary options", function () {
+
+			var parent;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1" data-message="I am instance 1"></div>\n'
+			+ '<div data-childview="child1" data-message="I am instance 2"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: {
+						view: ChildView, 
+						options: function ($el) { return { message: $el.data("message") }; } 
+					}
+				};
+				parent = createParent({}, childViews, html);
+			});
+
+			it("should create each child view, attached to container element with customised options", function () {
+				parent.render();
+				var $elements = parent.$el.children('[data-childview="child1"]');
+				expect($elements.eq(0).text()).toStartWith("ChildView - message:I am instance 1");
+				expect($elements.eq(1).text()).toStartWith("ChildView - message:I am instance 2");
+			});
+
+		});
+
 		describe("when attaching single child views to elements specified via custom selector", function () {
 
 			var parent;
@@ -143,7 +170,7 @@ describe("Child View Management", function () {
 				// Parent view with model containing collection attribute
 				var parentOptions = {
 					model: new Backbone.Model({
-						myCollection: new Backbone.Collection([{ name: "a" },{ name: "b" },{ name: "c" }])
+						myCollection: new Backbone.Collection([{ name: "a" }, { name: "b" }, { name: "c"}])
 					})
 				};
 				var childViews = {
@@ -205,6 +232,55 @@ describe("Child View Management", function () {
 			});
 		});
 
+
+		describe("when attaching single child view to multiple containers", function () {
+
+			var parent;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, options: { message: "I am child 1"} }
+				};
+				parent = createParent({}, childViews, html);
+			});
+
+			it("retrieving child view without indexer should return first", function () {
+				parent.render();
+				var child = parent.childViewHelper.getChildView("child1");
+				expect(child).not.toBeUndefined();
+				expect(child.options.message).toEqual("I am child 1");
+			});
+
+			it("should allow retrieval of child view instances using indexer", function () {
+				parent.render();
+				// Using helper directly - 	TODO - add getChildView(s) methods to view via mixin or leave up to applications?
+				var instance1 = parent.childViewHelper.getChildView("child1", 0);
+				expect(instance1).not.toBeUndefined();
+				expect(instance1.options.message).toEqual("I am child 1");
+
+				var instance2 = parent.childViewHelper.getChildView("child1", 1);
+				expect(instance2).not.toBeUndefined();
+				expect(instance2.options.message).toEqual("I am child 1");
+			});
+
+			it("should throw if attempting to retrieve using method used for sequence of views", function () {
+				parent.render();
+				//TODO
+			});
+
+			it("should clean up child views when cleaning up parent view", function () {
+				parent.render();
+				var child1 = parent.childViewHelper.getChildView("child1", 0);
+				var child2 = parent.childViewHelper.getChildView("child1", 1);
+				parent.close();
+				expect(child1.closed).toBeTruthy();
+				expect(child2.closed).toBeTruthy();
+			});
+		});
 
 		describe("when attaching sequence of child views", function () {
 
