@@ -3,10 +3,15 @@
 
 Don't directly render child views, they might need to wait for data to load etc
 
-Make autorender an option to specify that views are rendered
+What happens when attaching for second time? 
 
-Options includes a selector - don't have to use data-childview
+Copy parent view options: parentOptions: "*", parentOptions: "model level"
 
-What happens when attaching for second time?
+Special case treatment of model or collection option properties, look up attribute from parent view's model, e.g.
+options: { model: "Owner" ... } or options: { collection: "Employees" ... }
 
-RCVH finds the elements within the view el and renders, finding element is responsibility of handlers
+Rename property used for multiple from collection, e.g. 
+multiple: { options: [ { m: "1" }, { m: "2" } ] }, 
+multiple: { collection: "mike" }
+
+Attach modes, e.g. attach, append

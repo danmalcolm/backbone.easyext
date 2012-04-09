@@ -1,43 +1,106 @@
 (function () {
 
+	// Configuration
+
 	var childViewsConfig, defaultChildViewsConfig;
 	childViewsConfig = defaultChildViewsConfig = {
+		// A hook to allow child views to be cleaned up (unbinding
+		// etc) according to an application's requirements. Child views
+		// are cleaned up when they are reattached and when the parent
+		// view is cleaned up. It is recommended that parent views
+		// invoke cleanUp on their ChildViewHelper instance when they
+		// are closed.
 		cleanUpView: function (view) {
 
 		},
+		// Returns the selector used to find elements to which child
+		// views should be attached
 		defaultElementSelector: function (name) {
 			return '[data-childview=' + name + ']';
 		},
+		// Controls whether render is called automatically upon
+		// creation of each child view
 		autoRender: true
 	};
 
-	// Handlers - responsible for creating child view instances based
-	// on elements defined in the parent view
-
-	// Handles creation of child views using explicitly registered
-	// view definitions, defined on the parent view
-	var RegisteredChildViewHandler = function (parentView, childViewConfig) {
+	// Manages creation of child views that have been configured to be attached
+	// to elements within the DOM element managed by a parent view. Child views
+	// are specified in an object defined by a "childViews" property defined on 
+	// the parent view, e.g.
+	//
+	// var MyView = Backbone.View.extend({
+	//
+	//   ...
+	// 
+	//   childViews: {
+	//     attachments: { view: AttachmentsView, options: { position: "left" } }
+	//   }
+	//   
+	//   ...
+	// }
+	//
+	var ChildViewHelper = function (parentView) {
 		this.parentView = parentView;
 		this.descriptors = [];
 		this.descriptorsByName = {};
-		_.each(childViewConfig, function (value, name) {
-			var descriptor = new RegisteredChildViewDescriptor(name, parentView, value);
-			this.descriptors.push(descriptor);
-			this.descriptorsByName[name] = descriptor;
-		}, this);
+		this.initializeChildViews();
 	};
-	_.extend(RegisteredChildViewHandler.prototype, {
-		handle: function () {
+
+	_.extend(ChildViewHelper.prototype, {
+
+		initializeChildViews: function () {
+			var childViewConfig = this.readChildViewConfig();
+			_.each(childViewConfig, function (value, name) {
+				var descriptor = new RegisteredChildViewDescriptor(name, this.parentView, value);
+				this.descriptors.push(descriptor);
+				this.descriptorsByName[name] = descriptor;
+			}, this);
+		},
+
+		readChildViewConfig: function () {
+			return getValue(this.parentView, "childViews");
+		},
+
+		attach: function () {
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
 				this.descriptors[i].attach();
 			}
 		},
-		getCreated: function (name) {
+
+		getCreatedViewOrViews: function (name, at) {
+			at || (at = 0);
+			var created;
 			var descriptor = this.descriptorsByName[name];
 			if (descriptor) {
-				return descriptor.created;
+				created = descriptor.created;
 			}
+			return created ? created[at] : null;
 		},
+
+		// Gets instance of child view that has been attached. This is a 
+		// convenience method for use by application code that expects
+		// a single view to be referenced. 
+		getChildView: function (name, at) {
+			var created = this.getCreatedViewOrViews(name, at);
+			// Verify that expected scenario applies
+			if (_.isArray(created)) {
+				throw new Error(name + ' should reference an individual child view attached to a container element, but actually references multiple view instances. Use the "getChildViews" function to access a sequence of child views');
+			}
+			return created;
+		},
+
+		// Gets sequence of child views that has been attached. This is a 
+		// convenience method for use by application code that expects
+		// a sequence of views to be referenced. 
+		getChildViews: function (name, at) {
+			var created = this.getCreatedViewOrViews(name, at);
+			// Verify that expected scenario applies
+			if (!_.isArray(created)) {
+				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to access a single child view');
+			}
+			return created;
+		},
+
 		cleanUp: function () {
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
 				this.descriptors[i].cleanUp();
@@ -45,7 +108,7 @@
 		}
 	});
 
-	// Creates / manages child view(s) based on explicitly registered configuration
+	// Manages a child view defined on an instance of a parent view
 	var RegisteredChildViewDescriptor = function (name, parentView, config) {
 		this.name = name;
 		this.parentView = parentView;
@@ -132,7 +195,7 @@
 					});
 				}
 			}
-			
+
 			return options;
 		},
 		createSingle: function (options, $element) {
@@ -154,66 +217,7 @@
 		return _.isFunction(object[prop]) ? object[prop]() : object[prop];
 	};
 
-	// Manages a list of child views belonging to a view
-	var ChildViewHelper = function (parentView) {
-		this.parentView = parentView;
-		this.handlers = this.initializeHandlers();
-	};
 
-	_.extend(ChildViewHelper.prototype, {
-
-		initializeHandlers: function () {
-			// separation of handlers allows different strategies to be used to locate
-			// elements and attach views
-			return [new RegisteredChildViewHandler(this.parentView, getValue(this.parentView, "childViews"))];
-		},
-
-		attach: function () {
-			for (var i = 0, l = this.handlers.length; i < l; i++) {
-				this.handlers[i].handle(this.parentView);
-			}
-		},
-
-		getCreatedViewOrViews: function (name, at) {
-			at || (at = 0);
-			var created;
-			for (var i = 0, l = this.handlers.length; i < l; i++) {
-				created = this.handlers[i].getCreated(name);
-				if (created) break;
-			}
-			return created ? created[at] : null;
-		},
-
-		// Gets instance of child view that has been attached. This is a 
-		// convenience method for use by application code that expects
-		// a single view to be referenced and includes a check to verify
-		// that this is the expected scenario.
-		getChildView: function (name, at) {
-			var created = this.getCreatedViewOrViews(name, at);
-			if (_.isArray(created)) {
-				throw new Error(name + ' should reference an individual child view attached to a container element, but actually references multiple view instances. Use the "getChildViews" function to access a sequence of child views');
-			}
-			return created;
-		},
-
-		// Gets sequence of child views that has been attached. This is a 
-		// convenience method for use by application code that expects
-		// a sequence of views to be referenced and includes a check to verify
-		// that this is the expected scenario.
-		getChildViews: function (name, at) {
-			var created = this.getCreatedViewOrViews(name, at);
-			if (!_.isArray(created)) {
-				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to access a single child view');
-			}
-			return created;
-		},
-
-		cleanUp: function () {
-			for (var i = 0, l = this.handlers.length; i < l; i++) {
-				this.handlers[i].cleanUp();
-			}
-		}
-	});
 
 
 
