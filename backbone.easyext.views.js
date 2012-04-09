@@ -15,8 +15,7 @@
 	// on elements defined in the parent view
 
 	// Handles creation of child views using explicitly registered
-	// view definitions, usually combining some globally defined
-	// and others on the parent view itself
+	// view definitions, defined on the parent view
 	var RegisteredChildViewHandler = function (parentView, childViewConfig) {
 		this.parentView = parentView;
 		this.descriptors = [];
@@ -66,21 +65,24 @@
 			this.cleanUp();
 
 			// Select one or more elements specified for this child view and 
-			// attach to each
-			if (!this.$containers) {
+			// attach to each. We only select elements the first time that 
+			// child views are attached to the parent - this avoids matching
+			// on elements within child views.
+			if (!this.$elements) {
 				var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
-				this.$containers = this.parentView.$(selector);
+				this.$elements = this.parentView.$(selector);
 			}
 			var self = this;
-			this.$containers.each(function () {
-				self.attachToContainer($(this));
+			this.$elements.each(function () {
+				self.attachToElement($(this));
 			});
 		},
-		attachToContainer: function ($container) {
-			// Track items returned from create function - we can then distinguish
-			// between single views and sequences of views within the getChildView
-			// and getChildViews functions
-			var created = this.create($container);
+		attachToElement: function ($element) {
+			var created = this.create($element);
+			// Track created views. Either a single view or a sequence of views 
+			// will be attached to each element. The getChildView and getChildViews
+			// functions need to distinguish between these scenarios, so we record
+			// created objects as-is.
 			this.created.push(created);
 			var views = _.isArray(created) ? created : [created];
 			for (var i = 0, l = views.length; i < l; i++) {
@@ -93,25 +95,25 @@
 				}
 			}
 
-			// If we are managing a sequence of views, they are appended within
-			// the container element (we don't need to do anything with single views
-			// as they are attached directly to the container element when they are created).
+			// If we are managing a sequence of views, they are appended to
+			// the element (we don't need to do anything with single views
+			// as they are attached directly to the element when they are created).
 			if (_.isArray(created)) {
-				$container.empty().append($(_.pluck(created, "el")));
+				$element.empty().append($(_.pluck(created, "el")));
 			}
 		},
-		create: function ($container) {
-			var options = this.createOptions($container);
+		create: function ($element) {
+			var options = this.createOptions($element);
 			if (_.isArray(options)) {
-				return this.createSequence(options, $container);
+				return this.createSequence(options, $element);
 			} else {
-				return this.createSingle(options, $container);
+				return this.createSingle(options, $element);
 			}
 		},
-		createOptions: function ($container) {
+		createOptions: function ($element) {
 			// If options specified via a function, invoke in context of the parent view
 			var options = _.isFunction(this.config.options) ?
-				this.config.options.call(this.parentView, $container)
+				this.config.options.call(this.parentView, $element)
 				: _.clone(this.config.options);
 
 			if (this.config.collection) {
@@ -130,13 +132,14 @@
 					});
 				}
 			}
+			
 			return options;
 		},
-		createSingle: function (options, $el) {
-			options.el = $el;
+		createSingle: function (options, $element) {
+			options.el = $element;
 			return new this.config.view(options);
 		},
-		createSequence: function (optionsList, $el) {
+		createSequence: function (optionsList) {
 			var views = _.map(optionsList, function (options) {
 				return new this.config.view(options);
 			}, this);
@@ -181,20 +184,26 @@
 			return created ? created[at] : null;
 		},
 
-		// Gets instance of child view that has been created
+		// Gets instance of child view that has been attached. This is a 
+		// convenience method for use by application code that expects
+		// a single view to be referenced and includes a check to verify
+		// that this is the expected scenario.
 		getChildView: function (name, at) {
 			var created = this.getCreatedViewOrViews(name, at);
 			if (_.isArray(created)) {
-				throw new Error(name + ' should reference an individual child view attached to a single container element, but actually references multiple view instances. Use the "getChildViews" function to reference multiple child view instances');
+				throw new Error(name + ' should reference an individual child view attached to a container element, but actually references multiple view instances. Use the "getChildViews" function to access a sequence of child views');
 			}
 			return created;
 		},
 
-		// Gets instances of a sequence of child views that has been created
+		// Gets sequence of child views that has been attached. This is a 
+		// convenience method for use by application code that expects
+		// a sequence of views to be referenced and includes a check to verify
+		// that this is the expected scenario.
 		getChildViews: function (name, at) {
 			var created = this.getCreatedViewOrViews(name, at);
 			if (!_.isArray(created)) {
-				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to reference a single child view instance');
+				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to access a single child view');
 			}
 			return created;
 		},
