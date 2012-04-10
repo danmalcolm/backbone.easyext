@@ -13,6 +13,9 @@
 		cleanUpView: function (view) {
 
 		},
+		// The properties that will be used to read child view configuration
+		// from the parent view
+		configProperties: ["childViews"],
 		// Returns the selector used to find elements to which child
 		// views should be attached
 		defaultElementSelector: function (name) {
@@ -58,7 +61,15 @@
 		},
 
 		readChildViewConfig: function () {
-			return getValue(this.parentView, "childViews");
+			var current = {};
+			var properties = childViewsConfig.configProperties;
+			for (var i = 0, l = properties.length; i < l; i++) {
+				var next = getValue(this.parentView, properties[i]);
+				if (next) {
+					_.extend(current, next);
+				}
+			}
+			return current;
 		},
 
 		attach: function () {
@@ -101,6 +112,12 @@
 			return created;
 		},
 
+		eachChildView: function (fn) {
+			for (var i = 0, l = this.descriptors.length; i < l; i++) {
+				this.descriptors[i].eachView(fn);
+			}
+		},
+
 		cleanUp: function () {
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
 				this.descriptors[i].cleanUp();
@@ -116,27 +133,14 @@
 		this.created = [];
 	};
 	_.extend(RegisteredChildViewDescriptor.prototype, {
-		cleanUp: function () {
-			var views = _.flatten(this.created);
-			_.each(views, function (view) {
-				// Use centrally configured mechanism to clean up child view
-				childViewsConfig.cleanUpView(view);
-			});
-			this.created = [];
-		},
+
 		attach: function () {
 			this.cleanUp();
 
-			// Select one or more elements specified for this child view and 
-			// attach to each. We only select elements the first time that 
-			// child views are attached to the parent - this avoids matching
-			// on elements within child views.
-			if (!this.$elements) {
-				var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
-				this.$elements = this.parentView.$(selector);
-			}
+			var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
+			var $elements = this.parentView.$(selector);
 			var self = this;
-			this.$elements.each(function () {
+			$elements.each(function () {
 				self.attachToElement($(this));
 			});
 		},
@@ -175,35 +179,44 @@
 		createSingle: function ($element) {
 			var options = this.getOptions(this.config.options || {}, $element);
 			options.el = $element;
-			return new this.config.view(options);
+			var view = new this.config.view(options);
+			if (this.parentView.onCreateChildView)
+				this.parentView.onCreateChildView(view);
+			return view;
 		},
 		createSequence: function ($element) {
 			var sequenceConfig = this.config.sequence;
 			var optionsSequence;
-			if (sequenceConfig.collection) {
+
+			if (sequenceConfig.collection || sequenceConfig.models) {
 				// Config specifies that sequence of child views should be attached 
 				// based on models in collection belonging to parent view's model,
-				// so we create a sequence of options, each with a model in the collection
-				var options = this.getOptions(this.config.options || {}, $element);
-				var collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
-				if (collection) {
-					optionsSequence = collection.map(function (model) {
-						var itemOptions = _.clone(options);
-						itemOptions.model = model;
-						return itemOptions;
-					});
+				// so we create a sequence of options based on each model
+				var models;
+				if (sequenceConfig.collection) {
+					var collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
+					models = collection ? collection.models : [];
 				} else {
-					optionsSequence = [];
+					models = sequenceConfig.models;
 				}
+				var sharedOptions = this.getOptions(this.config.options || {}, $element);
+				optionsSequence = _.map(models, function (model) {
+					var options = _.clone(sharedOptions);
+					options.model = model;
+					return options;
+				});
 			} else if (_.isArray(sequenceConfig.options) || _.isFunction(sequenceConfig.options)) {
 				optionsSequence = this.getOptionsSequence(sequenceConfig.options, $element);
 			} else {
-				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model or "options" to provide an array of options');
+				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model, "models" to provide an array of models, or "options" to provide an array of options');
 			}
 
 			// Create a view for each object in options sequence
 			var views = _.map(optionsSequence, function (o) {
-				return new this.config.view(o);
+				var view = new this.config.view(o);
+				if (this.parentView.onCreateChildView)
+					this.parentView.onCreateChildView(view);
+				return view;
 			}, this);
 			return views;
 		},
@@ -259,6 +272,19 @@
 					}
 				}, this);
 			}
+		},
+		cleanUp: function () {
+			var views = _.flatten(this.created);
+			_.each(views, function (view) {
+				// Use centrally configured mechanism to clean up child view
+				childViewsConfig.cleanUpView(view);
+			});
+			this.created = [];
+		},
+		eachView: function (fn) {
+			_.each(_.flatten(this.created), function (view) {
+				fn(view);
+			});
 		}
 	});
 	var whitespaceSplitter = /\s+/;
@@ -272,8 +298,6 @@
 
 
 
-
-
 	// Mix-in used to extend View with child view functionality
 	var ChildViews = {
 		attachChildViews: function () {
@@ -281,13 +305,18 @@
 			return helper.attach.apply(helper, arguments);
 		},
 		getChildView: function (name, at) {
-			if(this.childViewHelper) {
-				return this.childViewHelper.getChildView(name,at);
+			if (this.childViewHelper) {
+				return this.childViewHelper.getChildView(name, at);
 			}
 		},
 		getChildViews: function (name, at) {
-			if(this.childViewHelper) {
-				return this.childViewHelper.getChildViews(name,at);
+			if (this.childViewHelper) {
+				return this.childViewHelper.getChildViews(name, at);
+			}
+		},
+		eachChildView: function (fn) {
+			if (this.childViewHelper) {
+				this.childViewHelper.eachChildView(fn);
 			}
 		}
 	};

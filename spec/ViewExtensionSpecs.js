@@ -188,6 +188,43 @@ describe("Child View Management", function () {
 
 		});
 
+		describe("when attaching sequence of child views generated via models option", function () {
+
+			var parent;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="children1"></div>\n'
+			+ '</div>';
+				// Parent view with model containing collection attribute
+				var parentOptions = {
+					model: new Backbone.Model({
+						myCollection: new Backbone.Collection([{ name: "a" }, { name: "b" }, { name: "c"}])
+					})
+				};
+				var childViews = function () {
+					return {
+						children1: {
+							view: ChildViewUsingModel,
+							options: { message: "hi" },
+							// first 2 models in the collection
+							sequence: { models: this.model.get("myCollection").initial() }
+						}
+					};
+				};
+
+				parent = createParent(parentOptions, childViews, html);
+			});
+
+			it("should attach each child view, appended to its container element", function () {
+				parent.render();
+				var expected = "<div>ChildView - message:hi, name:a</div><div>ChildView - message:hi, name:b</div>";
+				expect(parent.$el.children('[data-childview="children1"]').html()).toEqual(expected);
+			});
+
+		});
+
+
 	});
 
 
