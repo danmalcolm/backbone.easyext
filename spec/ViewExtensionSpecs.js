@@ -56,7 +56,7 @@ describe("Child View Management", function () {
 
 
 
-	describe("Child view configuration", function () {
+	describe("Child view configuration and rendering", function () {
 
 		describe("when attaching single child views to elements specified via default data-childview selector", function () {
 
@@ -176,8 +176,8 @@ describe("Child View Management", function () {
 				var childViews = {
 					children1: {
 						view: ChildViewUsingModel,
-						options: { message: "hi" }, 
-						sequence: { collection: "myCollection"}
+						options: { message: "hi" },
+						sequence: { collection: "myCollection" }
 					}
 				};
 
@@ -188,6 +188,134 @@ describe("Child View Management", function () {
 				parent.render();
 				var expected = "<div>ChildView - message:hi, name:a</div><div>ChildView - message:hi, name:b</div><div>ChildView - message:hi, name:c</div>";
 				expect(parent.$el.children('[data-childview="children1"]').html()).toEqual(expected);
+			});
+
+		});
+
+	});
+
+
+	describe("Child view options configuration", function () {
+
+		describe("when specifying that child should use all parent view's options", function () {
+
+			var parent, child;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, parentOptions: "*", options: { option3: "custom"} }
+				};
+				parent = createParent({
+					option1: "option 1",
+					option2: "option 2",
+					option3: "option 3"
+				}, childViews, html);
+				parent.render();
+				child = parent.childViewHelper.getChildView("child1");
+
+			});
+
+			it("child view options should include all options from parent", function () {
+				expect(child.options.option1).toEqual(parent.options.option1);
+				expect(child.options.option2).toEqual(parent.options.option2);
+			});
+
+			it("options defined for child view should override any values specified on parent", function () {
+				expect(child.options.option3).toEqual("custom");
+			});
+
+		});
+
+		describe("when specifying attribute to populate child view's model", function () {
+
+			var parent, child;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, model: "myModel" }
+				};
+				var model = new Backbone.Model({
+					"myModel": new Backbone.Model({ })
+				});
+				parent = createParent({
+					model: model
+				}, childViews, html);
+				parent.render();
+				child = parent.childViewHelper.getChildView("child1");
+			});
+
+			it("child view model should be set from attribute belonging to parent view's model", function () {
+				expect(child.model).toBe(parent.model.get("myModel"));
+			});
+
+		});
+
+		describe("when specifying attribute to populate child view's collection", function () {
+
+			var parent, child;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, collection: "myCollection" }
+				};
+				var model = new Backbone.Model({
+					"myCollection": new Backbone.Collection()
+				});
+				parent = createParent({
+					model: model
+				}, childViews, html);
+				parent.render();
+				child = parent.childViewHelper.getChildView("child1");
+			});
+
+			it("child view collection should be set from attribute belonging to parent view's model", function () {
+				expect(child.collection).toBe(parent.model.get("myCollection"));
+			});
+
+		});
+
+		describe("when specifying that child should use specific parent view's options", function () {
+
+			var parent, child;
+			beforeEach(function () {
+				var html = '<div>'
+			+ '<h1>Parent</h1>\n'
+			+ '<div data-childview="child1"></div>\n'
+			+ '</div>';
+				var childViews = {
+					child1: { view: ChildView, parentOptions: "option1 option2 option3", options: { option3: "custom"} }
+				};
+				parent = createParent({
+					option1: "option 1",
+					option2: "option 2",
+					option3: "option 3",
+					option4: "option 4"
+				}, childViews, html);
+				parent.render();
+				child = parent.childViewHelper.getChildView("child1");
+
+			});
+
+			it("child view options should include specified options from parent", function () {
+				expect(child.options.option1).toEqual(parent.options.option1);
+				expect(child.options.option2).toEqual(parent.options.option2);
+			});
+
+			it("options defined for child view should override any values specified on parent", function () {
+				expect(child.options.option3).toEqual("custom");
+			});
+
+			it("should not use any options not specified", function () {
+				expect(child.options.option4).toBeUndefined();
 			});
 
 		});

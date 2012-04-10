@@ -196,23 +196,72 @@
 					optionsSequence = [];
 				}
 			} else if (_.isArray(sequenceConfig.options) || _.isFunction(sequenceConfig.options)) {
-				optionsSequence = this.getOptions(sequenceConfig.options, $element);
+				optionsSequence = this.getOptionsSequence(sequenceConfig.options, $element);
+			} else {
+				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model or "options" to provide an array of options');
 			}
-			if (!_.isArray(optionsSequence)) {
-				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model or "options" with an array of options');
-			}
-			
+
 			// Create a view for each object in options sequence
 			var views = _.map(optionsSequence, function (o) {
 				return new this.config.view(o);
 			}, this);
 			return views;
 		},
-		getOptions: function (options, $element) {
+		getOptions: function (optionsConfig, $element) {
 			// If options specified via a function, invoke in context of the parent view
-			return _.isFunction(options) ? options.call(this.parentView, $element) : _.clone(options);
+			var options = _.isFunction(optionsConfig) ? optionsConfig.call(this.parentView, $element) : _.clone(optionsConfig);
+			var parentOptions = this.getParentOptions();
+			options = _.extend(parentOptions, options);
+			this.addParentModelAttributes(options);
+			return options;
+		},
+		getOptionsSequence: function (optionsConfig, $element) {
+			// If options specified via a function, invoke in context of the parent view
+			var sequence = _.isFunction(optionsConfig) ? optionsConfig.call(this.parentView, $element) : _.clone(optionsConfig);
+			if (!_.isArray(sequence)) {
+				throw new Error('The "sequence.options" option for child view "' + this.name + '" must supply an array of options objects');
+			}
+			var parentOptions = this.getParentOptions();
+			sequence = _.map(sequence, function (options) {
+				options = _.extend(_.clone(parentOptions), options);
+				this.addParentModelAttributes(options);
+				return options;
+			}, this);
+			return sequence;
+		},
+		getParentOptions: function () {
+			var parentOptionsConfig = this.config.parentOptions;
+			var parentOptions = {};
+			if (!parentOptionsConfig) {
+				return parentOptions;
+			} else if (this.config.parentOptions === "*") {
+				parentOptions = _.clone(this.parentView.options);
+			} else {
+				var keys = parentOptionsConfig.split(whitespaceSplitter);
+				for (var i = 0, l = keys.length; i < l; i++) {
+					var key = keys[i];
+					parentOptions[key] = this.parentView.options[key];
+				}
+			}
+			return parentOptions;
+		},
+		// It's common for a child view to manage a collection or model that is
+		// an attribute of the parent view's model - the model and collection 
+		// properties on the child view configuration provide a shortcut to 
+		// setting these properties
+		addParentModelAttributes: function (options) {
+			var parentModel = this.parentView.model;
+			if (parentModel) {
+				_.each(["model", "collection"], function (optionsKey) {
+					var attributeKey = this.config[optionsKey];
+					if (attributeKey) {
+						options[optionsKey] = parentModel.get(attributeKey);
+					}
+				}, this);
+			}
 		}
 	});
+	var whitespaceSplitter = /\s+/;
 
 	// Helper function to get a value from an object as a property
 	// or as a function.

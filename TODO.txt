@@ -5,9 +5,4 @@ Don't directly render child views, they might need to wait for data to load etc
 
 What happens when attaching for second time? 
 
-Copy parent view options: parentOptions: "*", parentOptions: "model level"
-
-Special case treatment of model or collection option properties, look up attribute from parent view's model, e.g.
-options: { model: "Owner" ... } or options: { collection: "Employees" ... }
-
 Attach modes, e.g. attach, append
