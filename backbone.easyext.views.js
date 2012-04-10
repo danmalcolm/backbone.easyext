@@ -166,47 +166,51 @@
 			}
 		},
 		create: function ($element) {
-			var options = this.createOptions($element);
-			if (_.isArray(options)) {
-				return this.createSequence(options, $element);
+			if (!_.isObject(this.config.sequence)) {
+				return this.createSingle($element);
 			} else {
-				return this.createSingle(options, $element);
+				return this.createSequence($element);
 			}
 		},
-		createOptions: function ($element) {
-			// If options specified via a function, invoke in context of the parent view
-			var options = _.isFunction(this.config.options) ?
-				this.config.options.call(this.parentView, $element)
-				: _.clone(this.config.options);
-
-			if (this.config.collection) {
+		createSingle: function ($element) {
+			var options = this.getOptions(this.config.options || {}, $element);
+			options.el = $element;
+			return new this.config.view(options);
+		},
+		createSequence: function ($element) {
+			var sequenceConfig = this.config.sequence;
+			var optionsSequence;
+			if (sequenceConfig.collection) {
 				// Config specifies that sequence of child views should be attached 
 				// based on models in collection belonging to parent view's model,
-				// so we create a sequence of options
-				if (_.isArray(options)) {
-					throw new Error('The collection setting "' + this.config.collection + '" for child view "' + this.name + '" is not valid because a sequence of options were specified. It is not possible to generate multiple child views using both an array of options and a collection');
-				}
-				var collection = this.parentView.model ? this.parentView.model.get(this.config.collection) : null;
+				// so we create a sequence of options, each with a model in the collection
+				var options = this.getOptions(this.config.options || {}, $element);
+				var collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
 				if (collection) {
-					options = collection.map(function (model) {
+					optionsSequence = collection.map(function (model) {
 						var itemOptions = _.clone(options);
 						itemOptions.model = model;
 						return itemOptions;
 					});
+				} else {
+					optionsSequence = [];
 				}
+			} else if (_.isArray(sequenceConfig.options) || _.isFunction(sequenceConfig.options)) {
+				optionsSequence = this.getOptions(sequenceConfig.options, $element);
 			}
-
-			return options;
-		},
-		createSingle: function (options, $element) {
-			options.el = $element;
-			return new this.config.view(options);
-		},
-		createSequence: function (optionsList) {
-			var views = _.map(optionsList, function (options) {
-				return new this.config.view(options);
+			if (!_.isArray(optionsSequence)) {
+				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model or "options" with an array of options');
+			}
+			
+			// Create a view for each object in options sequence
+			var views = _.map(optionsSequence, function (o) {
+				return new this.config.view(o);
 			}, this);
 			return views;
+		},
+		getOptions: function (options, $element) {
+			// If options specified via a function, invoke in context of the parent view
+			return _.isFunction(options) ? options.call(this.parentView, $element) : _.clone(options);
 		}
 	});
 

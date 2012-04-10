@@ -93,8 +93,8 @@ describe("Child View Management", function () {
 			+ '</div>';
 				var childViews = {
 					child1: {
-						view: ChildView, 
-						options: function ($el) { return { message: $el.data("message") }; } 
+						view: ChildView,
+						options: function ($el) { return { message: $el.data("message") }; }
 					}
 				};
 				parent = createParent({}, childViews, html);
@@ -109,7 +109,7 @@ describe("Child View Management", function () {
 
 		});
 
-		describe("when attaching single child views to elements specified via custom selector", function () {
+		describe("when attaching single child view to elements specified via custom selector", function () {
 
 			var parent;
 			beforeEach(function () {
@@ -139,13 +139,13 @@ describe("Child View Management", function () {
 			beforeEach(function () {
 				var html = '<div>'
 			+ '<h1>Parent</h1>\n'
-			+ '<div data-childview="children"></div>\n'
+			+ '<div data-childview="children1"></div>\n'
 			+ '</div>';
-				// Multiple child views created if array of options specified
+				// Multiple child views specified via sequence option
 				var childViews = {
-					children: {
+					children1: {
 						view: ChildView,
-						options: [{ message: "1a" }, { message: "1b" }, { message: "1c"}]
+						sequence: { options: [{ message: "1a" }, { message: "1b" }, { message: "1c"}] }
 					}
 				};
 				parent = createParent({}, childViews, html);
@@ -154,7 +154,7 @@ describe("Child View Management", function () {
 			it("should attach each child view, appended to its container element", function () {
 				parent.render();
 				var expected = "<div>ChildView - message:1a</div><div>ChildView - message:1b</div><div>ChildView - message:1c</div>";
-				expect(parent.$el.children('[data-childview="children"]').html()).toEqual(expected);
+				expect(parent.$el.children('[data-childview="children1"]').html()).toEqual(expected);
 			});
 
 		});
@@ -165,7 +165,7 @@ describe("Child View Management", function () {
 			beforeEach(function () {
 				var html = '<div>'
 			+ '<h1>Parent</h1>\n'
-			+ '<div data-childview="children"></div>\n'
+			+ '<div data-childview="children1"></div>\n'
 			+ '</div>';
 				// Parent view with model containing collection attribute
 				var parentOptions = {
@@ -174,7 +174,11 @@ describe("Child View Management", function () {
 					})
 				};
 				var childViews = {
-					children: { view: ChildViewUsingModel, options: { message: "hi" }, collection: "myCollection" }
+					children1: {
+						view: ChildViewUsingModel,
+						options: { message: "hi" }, 
+						sequence: { collection: "myCollection"}
+					}
 				};
 
 				parent = createParent(parentOptions, childViews, html);
@@ -183,7 +187,7 @@ describe("Child View Management", function () {
 			it("should attach each child view, appended to its container element", function () {
 				parent.render();
 				var expected = "<div>ChildView - message:hi, name:a</div><div>ChildView - message:hi, name:b</div><div>ChildView - message:hi, name:c</div>";
-				expect(parent.$el.children('[data-childview="children"]').html()).toEqual(expected);
+				expect(parent.$el.children('[data-childview="children1"]').html()).toEqual(expected);
 			});
 
 		});
@@ -293,7 +297,7 @@ describe("Child View Management", function () {
 				var childViews = {
 					children: {
 						view: ChildView,
-						options: [{ message: "1a" }, { message: "1b" }, { message: "1c"}]
+						sequence: { options: [{ message: "1a" }, { message: "1b" }, { message: "1c"}] }
 					}
 				};
 				parent = createParent({}, childViews, html);
