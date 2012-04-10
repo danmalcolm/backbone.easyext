@@ -148,18 +148,13 @@ Backbone.easyext = (function () {
 				var model;
 				model = parent.attributes[descriptor.key];
 				if (model instanceof descriptor.model && modelComparer.attributesCorrelateWithModel(model, newAttributes)) {
-					// Update attributes of existing model, so that we don't end up with
-					// a different model instance (objects might be bound to events)
-					model.set(newAttributes);
+					// Update attributes of existing model
+					model.set(newAttributes, { silent: true });
 				} else {
 					// Convert to model
 					model = new descriptor.model(newAttributes);
 				}
 				return model;
-			},
-			_isSameModel: function (model, newAttributes) {
-
-				return attrsCorrelateWithModel(existing, newAttributes);
 			}
 
 		},
@@ -209,14 +204,15 @@ Backbone.easyext = (function () {
 						});
 					}
 					if (model) {
-						model.set(attributes);
+						// should not trigger events while converting
+						model.set(attributes, { silent: true }); 
 						return model;
 					} else {
 						// just use attributes, collection will convert to model
 						return attributes;
 					}
 				});
-				collection.reset(models);
+				collection.reset(models, { silent: true });
 			}
 		},
 		// Converts dates from string value like "/Date(1361441768427)/" used by Microsoft's JSON serializers and JSON.Net: 
