@@ -276,14 +276,27 @@
 
 	// Mix-in used to extend View with child view functionality
 	var ChildViews = {
-
+		attachChildViews: function () {
+			var helper = this.childViewHelper || (this.childViewHelper = new ChildViewHelper(this));
+			return helper.attach.apply(helper, arguments);
+		},
+		getChildView: function (name, at) {
+			if(this.childViewHelper) {
+				return this.childViewHelper.getChildView(name,at);
+			}
+		},
+		getChildViews: function (name, at) {
+			if(this.childViewHelper) {
+				return this.childViewHelper.getChildViews(name,at);
+			}
+		}
 	};
 
 	// Define a scope for extensions
 	var root = this;
 	root.Backbone.easyext = root.Backbone.easyext || {};
 	root.Backbone.easyext.views = {
-		ChildViewHelper: ChildViewHelper,
+		ChildViews: ChildViews,
 		// Configurable behaviour, pass null to reset to default settings
 		configureChildViews: function (config) {
 			childViewsConfig = _.extend(_.clone(defaultChildViewsConfig), config);

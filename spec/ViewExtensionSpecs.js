@@ -3,11 +3,6 @@ describe("Child View Management", function () {
 	// Configuration and view supertype for a typical application	
 	var BaseView = Backbone.View.extend({
 
-		attachChildViews: function () {
-			var helper = this.childViewHelper || (this.childViewHelper = new Backbone.easyext.views.ChildViewHelper(this));
-			return helper.attach.apply(helper, arguments);
-		},
-
 		close: function () {
 			this.unbind();
 			if (this.childViewHelper) this.childViewHelper.cleanUp();
@@ -21,6 +16,7 @@ describe("Child View Management", function () {
 			this.attachChildViews();
 		}
 	});
+	_.extend(BaseView.prototype, Backbone.easyext.views.ChildViews);
 
 	Backbone.easyext.views.configureChildViews({
 		// hook for cleaning up a detached child view
@@ -214,7 +210,7 @@ describe("Child View Management", function () {
 					option3: "option 3"
 				}, childViews, html);
 				parent.render();
-				child = parent.childViewHelper.getChildView("child1");
+				child = parent.getChildView("child1");
 
 			});
 
@@ -241,13 +237,13 @@ describe("Child View Management", function () {
 					child1: { view: ChildView, model: "myModel" }
 				};
 				var model = new Backbone.Model({
-					"myModel": new Backbone.Model({ })
+					"myModel": new Backbone.Model({})
 				});
 				parent = createParent({
 					model: model
 				}, childViews, html);
 				parent.render();
-				child = parent.childViewHelper.getChildView("child1");
+				child = parent.getChildView("child1");
 			});
 
 			it("child view model should be set from attribute belonging to parent view's model", function () {
@@ -274,7 +270,7 @@ describe("Child View Management", function () {
 					model: model
 				}, childViews, html);
 				parent.render();
-				child = parent.childViewHelper.getChildView("child1");
+				child = parent.getChildView("child1");
 			});
 
 			it("child view collection should be set from attribute belonging to parent view's model", function () {
@@ -301,7 +297,7 @@ describe("Child View Management", function () {
 					option4: "option 4"
 				}, childViews, html);
 				parent.render();
-				child = parent.childViewHelper.getChildView("child1");
+				child = parent.getChildView("child1");
 
 			});
 
@@ -344,7 +340,7 @@ describe("Child View Management", function () {
 			it("should allow retrieval of child view instances", function () {
 				parent.render();
 				// Using helper directly - 	TODO - add getChildView(s) methods to view via mixin or leave up to applications?
-				var child = parent.childViewHelper.getChildView("child1");
+				var child = parent.getChildView("child1");
 				expect(child).not.toBeUndefined();
 				expect(child.options.message).toEqual("I am child 1");
 			});
@@ -356,8 +352,8 @@ describe("Child View Management", function () {
 
 			it("should clean up child views when cleaning up parent view", function () {
 				parent.render();
-				var child1 = parent.childViewHelper.getChildView("child1");
-				var child2 = parent.childViewHelper.getChildView("child2");
+				var child1 = parent.getChildView("child1");
+				var child2 = parent.getChildView("child2");
 				parent.close();
 				expect(child1.closed).toBeTruthy();
 				expect(child2.closed).toBeTruthy();
@@ -382,7 +378,7 @@ describe("Child View Management", function () {
 
 			it("retrieving child view without indexer should return first", function () {
 				parent.render();
-				var child = parent.childViewHelper.getChildView("child1");
+				var child = parent.getChildView("child1");
 				expect(child).not.toBeUndefined();
 				expect(child.options.message).toEqual("I am child 1");
 			});
@@ -390,11 +386,11 @@ describe("Child View Management", function () {
 			it("should allow retrieval of child view instances using indexer", function () {
 				parent.render();
 				// Using helper directly - 	TODO - add getChildView(s) methods to view via mixin or leave up to applications?
-				var instance1 = parent.childViewHelper.getChildView("child1", 0);
+				var instance1 = parent.getChildView("child1", 0);
 				expect(instance1).not.toBeUndefined();
 				expect(instance1.options.message).toEqual("I am child 1");
 
-				var instance2 = parent.childViewHelper.getChildView("child1", 1);
+				var instance2 = parent.getChildView("child1", 1);
 				expect(instance2).not.toBeUndefined();
 				expect(instance2.options.message).toEqual("I am child 1");
 			});
@@ -406,8 +402,8 @@ describe("Child View Management", function () {
 
 			it("should clean up child views when cleaning up parent view", function () {
 				parent.render();
-				var child1 = parent.childViewHelper.getChildView("child1", 0);
-				var child2 = parent.childViewHelper.getChildView("child1", 1);
+				var child1 = parent.getChildView("child1", 0);
+				var child2 = parent.getChildView("child1", 1);
 				parent.close();
 				expect(child1.closed).toBeTruthy();
 				expect(child2.closed).toBeTruthy();
@@ -457,46 +453,5 @@ describe("Child View Management", function () {
 
 	});
 
-
-	/*
-	describe("when attaching multiple child views generated via collection", function () {
-
-	var parent;
-	beforeEach(function () {
-	var html = '<div>'
-	+ '<h1>Parent</h1>\n'
-	+ '<div data-childviews="child1"></div>\n'
-	+ '</div>';
-	var childViews = {
-	child1: {
-	view: ChildView,
-	options: { message: "I am child 1" },
-	collection: "List"
-	}
-	};
-	parent = createParent({}, childViews, html);
-	});
-
-	it("should create each child view, attached to its container element", function () {
-	parent.render();
-	expect(parent.$el.children('[data-childview="child1"]').text()).toStartWith("ChildView - message:I am child 1");
-	});
-
-	it("should allow retrieval of child view instances", function () {
-	parent.render();
-	// Using helper directly - 	TODO - add getChildView(s) methods to view via mixin or leave up to applications?
-	var child = parent.childViewHelper.getChildView("child1");
-	expect(child).not.toBeUndefined();
-	expect(child.options.message).toEqual("I am child 1");
-	});
-
-	it("should clean up child views when cleaning up parent view", function () {
-	parent.render();
-	var child1 = parent.childViewHelper.getChildView("child1");
-	parent.close();
-	expect(child1.closed).toBeTruthy();
-	});
-	});
-	*/
 
 });
