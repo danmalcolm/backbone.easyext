@@ -1,0 +1,17 @@
+﻿CHILDVIEWS
+----------
+
+Don't directly render child views, they might need to wait for data to load etc
+
+What happens when attaching for second time? 
+
+Copy parent view options: parentOptions: "*", parentOptions: "model level"
+
+Special case treatment of model or collection option properties, look up attribute from parent view's model, e.g.
+options: { model: "Owner" ... } or options: { collection: "Employees" ... }
+
+Rename property used for multiple from collection, e.g. 
+multiple: { options: [ { m: "1" }, { m: "2" } ] }, 
+multiple: { collection: "mike" }
+
+Attach modes, e.g. attach, append

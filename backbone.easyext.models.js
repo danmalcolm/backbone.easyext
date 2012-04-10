@@ -1,4 +1,4 @@
-Backbone.easyext = (function () {
+(function () {
 
 	// ----------------------------------------------------------------------------------------
 	// Dirty tracking extension functionality
@@ -278,10 +278,11 @@ Backbone.easyext = (function () {
 		}
 	};
 
-	return {
-		models: {
-			AttributeConversion: AttributeConversion,
-			DirtyTracker: DirtyTracker
-		}
+	// Define a scope for extensions
+	var root = this;
+	root.Backbone.easyext = root.Backbone.easyext || {};
+	root.Backbone.easyext.models = {
+		AttributeConversion: AttributeConversion,
+		DirtyTracker: DirtyTracker
 	};
 })();
