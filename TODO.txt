@@ -1,8 +1,6 @@
 ﻿CHILDVIEWS
 ----------
 
-Don't directly render child views, they might need to wait for data to load etc
-
-What happens when attaching for second time? 
+What happens when attaching for second time? Need to prevent selectors from matching on elements within child views
 
 Attach modes, e.g. attach, append
