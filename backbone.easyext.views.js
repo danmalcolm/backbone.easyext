@@ -72,49 +72,76 @@
 			return current;
 		},
 
-		attach: function () {
+		attachChildViews: function () {
 			var names = arguments;
+			var filtering = names.length > 0;
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
-				if (names.length == 0 || _.include(names, this.descriptors[i].name)) {
+				if (!filtering || _.include(names, this.descriptors[i].name)) {
 					this.descriptors[i].attach();
 				}
 			}
 		},
 
-		getCreatedViewOrViews: function (name, at) {
-			at || (at = 0);
+		getCreated: function (name, single, sequence) {
 			var created;
 			var descriptor = this.descriptorsByName[name];
-			if (descriptor) {
-				created = descriptor.created;
+			if (!descriptor) {
+				throw new Error('Child view definition "' + descriptor.name + '" does not exist on the parent view.');
 			}
-			return created ? created[at] : null;
+
+			// Ensure we have instances or sequences
+			if (sequence !== descriptor.isSequence) {
+				if (sequence) {
+					throw new Error('getChildViewSequence and getChildViewSequences are not valid for child view definition "' + name + '", which adds a single view. Use getChildView(s) for child views that do not generate a sequence.');
+				} else {
+					throw new Error('getChildView and getChildViews are not valid for child view definition "' + name + '", which generates sequences of views. Use getChildViewSequence(s) for child views that generated sequences.');
+				}
+			}
+
+			created = descriptor.created;
+			if (!created) {
+				throw new Error('Child view definition "' + descriptor.name + '" has not attached any views to the parent view. Either attachViews has not been called or no matching elements were found within the parent view element.');
+			}
+
+			// Ensure we have single instance / sequence if required
+			if (single && created.length > 1) {
+				throw new Error('Child view definition "' + descriptor.name + '" has attached a view or sequence of views to more than one element within the parent view\'s element. getChildView and getChildViewSequence are designed only for situations where the child view definition has been applied to a single element. Use getChildViews and getChildViewSequences instead.');
+			}
+
+
+			return single ? created[0] : created;
 		},
 
-		// Gets instance of child view that has been attached. This is a 
-		// convenience method for use by application code that expects
-		// a single view to be referenced. 
-		getChildView: function (name, at) {
-			var created = this.getCreatedViewOrViews(name, at);
-			// Verify that expected scenario applies
-			if (_.isArray(created)) {
-				throw new Error(name + ' should reference an individual child view attached to a container element, but actually references multiple view instances. Use the "getChildViews" function to access a sequence of child views');
-			}
-			return created;
+		// Gets instance of child view that has been attached to a single
+		// element within the parent view element. An error is thrown if
+		// a child view with the given name has been attached to more than
+		// one element. This is intended to simplify application code that 
+		// expects a single instance.
+		getChildView: function (name) {
+			return this.getCreated(name, true, false);
 		},
 
-		// Gets sequence of child views that has been attached. This is a 
-		// convenience method for use by application code that expects
-		// a sequence of views to be referenced. 
-		getChildViews: function (name, at) {
-			var created = this.getCreatedViewOrViews(name, at) || [];
-			// Verify that expected scenario applies
-			if (!_.isArray(created)) {
-				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to access a single child view');
-			}
-			return created;
+		// Gets array of child view instances that have been attached to one or
+		// more elements within the parent view element.
+		getChildViews: function (name) {
+			return this.getCreated(name, false, false);
 		},
 
+		// Gets sequence of child views that have been attached to a single
+		// element within the parent view element. An error is thrown if
+		// a child view sequence with the given name has been attached to more than
+		// one element. This is intended to simplify application code that 
+		// expects a single sequence.
+		getChildViewSequence: function (name) {
+			return this.getCreated(name, true, true);
+		},
+
+		// Gets array of child view sequences that have been attached to one or
+		// more elements within the parent view element.
+		getChildViewSequences: function (name) {
+			return this.getCreated(name, false, true);
+		},
+		
 		eachChildView: function (fn) {
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
 				this.descriptors[i].eachView(fn);
@@ -134,6 +161,7 @@
 		this.parentView = parentView;
 		this.config = config;
 		this.created = [];
+		this.isSequence = !_.isUndefined(config.sequence);
 	};
 	_.extend(RegisteredChildViewDescriptor.prototype, {
 
@@ -150,7 +178,7 @@
 		attachToElement: function ($element) {
 			var created = this.create($element);
 			// Track created views. Either a single view or a sequence of views 
-			// will be attached to each element. The getChildView and getChildViews
+			// will be attached to each element. The getChildView and getChildViewSequence
 			// functions need to distinguish between these scenarios, so we record
 			// created objects as-is.
 			this.created.push(created);
@@ -201,12 +229,8 @@
 						// collection: "something" means collection is attribute of parent view's model
 						collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
 					}
-					else if (sequenceConfig.collection === true) {
-						// collection: true means use collection of parent view
-						collection = this.parentView.collection;
-					}
 					else {
-						collection = sequenceConfig.collection;
+						collection = getValue(sequenceConfig, "collection", this.parentView);
 					}
 					models = collection instanceof Backbone.Collection ? collection.models : [];
 				} else {
@@ -282,13 +306,13 @@
 		// Properties on the child view configuration provide a shortcut to 
 		// setting these properties
 		addModelAndCollectionOptions: function (options) {
-			_.each(["model", "collection"], function (optionsKey) {
-				if(this.config[optionsKey]) {
-					var option = getValue(this.config, optionsKey, this.parentView);
+			_.each(["model", "collection"], function (key) {
+				if (this.config[key]) {
+					var option = getValue(this.config, key, this.parentView);
 					if (_.isString(option) && this.parentView.model) {
 						option = this.parentView.model.get(option);
 					}
-					options[optionsKey] = option;
+					options[key] = option;
 				}
 			}, this);
 		},
@@ -318,28 +342,15 @@
 
 
 
-	// Mix-in used to extend View with child view functionality
-	var ChildViews = {
-		attachChildViews: function () {
+	// "Mix-in" used to extend Backbone.View with child view functionality
+	var ChildViews = { };
+	// Add functions from ChildViewHelper to our extension - they'll just delegate from view to ChildViewHelperInstance
+	_.each(["attachChildViews", "getChildView", "getChildViews", "getChildViewSequence", "getChildViewSequences"], function (name) {
+		ChildViews[name] = function () {
 			var helper = this.childViewHelper || (this.childViewHelper = new ChildViewHelper(this));
-			return helper.attach.apply(helper, arguments);
-		},
-		getChildView: function (name, at) {
-			if (this.childViewHelper) {
-				return this.childViewHelper.getChildView(name, at);
-			}
-		},
-		getChildViews: function (name, at) {
-			if (this.childViewHelper) {
-				return this.childViewHelper.getChildViews(name, at);
-			}
-		},
-		eachChildView: function (fn) {
-			if (this.childViewHelper) {
-				this.childViewHelper.eachChildView(fn);
-			}
-		}
-	};
+			return helper[name].apply(helper, arguments);
+		};
+	});
 
 	// Define a scope for extensions
 	var root = this;
