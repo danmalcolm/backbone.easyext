@@ -456,47 +456,5 @@ describe("Child View Management", function () {
 		});
 
 	});
-
-
-	/*
-	describe("when attaching multiple child views generated via collection", function () {
-
-	var parent;
-	beforeEach(function () {
-	var html = '<div>'
-	+ '<h1>Parent</h1>\n'
-	+ '<div data-childviews="child1"></div>\n'
-	+ '</div>';
-	var childViews = {
-	child1: {
-	view: ChildView,
-	options: { message: "I am child 1" },
-	collection: "List"
-	}
-	};
-	parent = createParent({}, childViews, html);
-	});
-
-	it("should create each child view, attached to its container element", function () {
-	parent.render();
-	expect(parent.$el.children('[data-childview="child1"]').text()).toStartWith("ChildView - message:I am child 1");
-	});
-
-	it("should allow retrieval of child view instances", function () {
-	parent.render();
-	// Using helper directly - 	TODO - add getChildView(s) methods to view via mixin or leave up to applications?
-	var child = parent.childViewHelper.getChildView("child1");
-	expect(child).not.toBeUndefined();
-	expect(child.options.message).toEqual("I am child 1");
-	});
-
-	it("should clean up child views when cleaning up parent view", function () {
-	parent.render();
-	var child1 = parent.childViewHelper.getChildView("child1");
-	parent.close();
-	expect(child1.closed).toBeTruthy();
-	});
-	});
-	*/
-
+	
 });

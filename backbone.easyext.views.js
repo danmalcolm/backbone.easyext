@@ -13,6 +13,9 @@
 		cleanUpView: function (view) {
 
 		},
+		// The properties that will be used to read child view configuration
+		// from the parent view
+		configProperties: ["childViews"],
 		// Returns the selector used to find elements to which child
 		// views should be attached
 		defaultElementSelector: function (name) {
@@ -58,12 +61,23 @@
 		},
 
 		readChildViewConfig: function () {
-			return getValue(this.parentView, "childViews");
+			var current = {};
+			var properties = childViewsConfig.configProperties;
+			for (var i = 0, l = properties.length; i < l; i++) {
+				var next = getValue(this.parentView, properties[i]);
+				if (next) {
+					_.extend(current, next);
+				}
+			}
+			return current;
 		},
 
 		attach: function () {
+			var names = arguments;
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
-				this.descriptors[i].attach();
+				if (names.length == 0 || _.include(names, this.descriptors[i].name)) {
+					this.descriptors[i].attach();
+				}
 			}
 		},
 
@@ -93,12 +107,18 @@
 		// convenience method for use by application code that expects
 		// a sequence of views to be referenced. 
 		getChildViews: function (name, at) {
-			var created = this.getCreatedViewOrViews(name, at);
+			var created = this.getCreatedViewOrViews(name, at) || [];
 			// Verify that expected scenario applies
 			if (!_.isArray(created)) {
 				throw new Error(name + ' should reference multiple child view instances, but actually references a single view. Use the "getChildView" function to access a single child view');
 			}
 			return created;
+		},
+
+		eachChildView: function (fn) {
+			for (var i = 0, l = this.descriptors.length; i < l; i++) {
+				this.descriptors[i].eachView(fn);
+			}
 		},
 
 		cleanUp: function () {
@@ -116,27 +136,14 @@
 		this.created = [];
 	};
 	_.extend(RegisteredChildViewDescriptor.prototype, {
-		cleanUp: function () {
-			var views = _.flatten(this.created);
-			_.each(views, function (view) {
-				// Use centrally configured mechanism to clean up child view
-				childViewsConfig.cleanUpView(view);
-			});
-			this.created = [];
-		},
+
 		attach: function () {
 			this.cleanUp();
 
-			// Select one or more elements specified for this child view and 
-			// attach to each. We only select elements the first time that 
-			// child views are attached to the parent - this avoids matching
-			// on elements within child views.
-			if (!this.$elements) {
-				var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
-				this.$elements = this.parentView.$(selector);
-			}
+			var selector = this.config.selector || childViewsConfig.defaultElementSelector(this.name);
+			var $elements = this.parentView.$(selector);
 			var self = this;
-			this.$elements.each(function () {
+			$elements.each(function () {
 				self.attachToElement($(this));
 			});
 		},
@@ -175,35 +182,55 @@
 		createSingle: function ($element) {
 			var options = this.getOptions(this.config.options || {}, $element);
 			options.el = $element;
-			return new this.config.view(options);
+			var view = new this.config.view(options);
+			if (this.parentView.onCreateChildView)
+				this.parentView.onCreateChildView(view);
+			return view;
 		},
 		createSequence: function ($element) {
 			var sequenceConfig = this.config.sequence;
 			var optionsSequence;
-			if (sequenceConfig.collection) {
-				// Config specifies that sequence of child views should be attached 
-				// based on models in collection belonging to parent view's model,
-				// so we create a sequence of options, each with a model in the collection
-				var options = this.getOptions(this.config.options || {}, $element);
-				var collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
-				if (collection) {
-					optionsSequence = collection.map(function (model) {
-						var itemOptions = _.clone(options);
-						itemOptions.model = model;
-						return itemOptions;
-					});
+
+			if (sequenceConfig.collection || sequenceConfig.models) {
+				// Config specifies that sequence of child views should be generated
+				// from a sequence of models
+				var models;
+				if (sequenceConfig.collection) {
+					var collection;
+					if (_.isString(sequenceConfig.collection)) {
+						// collection: "something" means collection is attribute of parent view's model
+						collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
+					}
+					else if (sequenceConfig.collection === true) {
+						// collection: true means use collection of parent view
+						collection = this.parentView.collection;
+					}
+					else {
+						collection = sequenceConfig.collection;
+					}
+					models = collection instanceof Backbone.Collection ? collection.models : [];
 				} else {
-					optionsSequence = [];
+					models = getValue(sequenceConfig, "models", this.parentView);
 				}
+
+				var sharedOptions = this.getOptions(this.config.options || {}, $element);
+				optionsSequence = _.map(models, function (model) {
+					var options = _.clone(sharedOptions);
+					options.model = model;
+					return options;
+				});
 			} else if (_.isArray(sequenceConfig.options) || _.isFunction(sequenceConfig.options)) {
 				optionsSequence = this.getOptionsSequence(sequenceConfig.options, $element);
 			} else {
-				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model or "options" to provide an array of options');
+				throw new Error('The "sequence" option for child view "' + this.name + '" is invalid. Use either "collection" with the name of a collection attribute on the parent view\'s model, "models" to provide an array of models, or "options" to provide an array of options');
 			}
 
 			// Create a view for each object in options sequence
 			var views = _.map(optionsSequence, function (o) {
-				return new this.config.view(o);
+				var view = new this.config.view(o);
+				if (this.parentView.onCreateChildView)
+					this.parentView.onCreateChildView(view);
+				return view;
 			}, this);
 			return views;
 		},
@@ -212,7 +239,7 @@
 			var options = _.isFunction(optionsConfig) ? optionsConfig.call(this.parentView, $element) : _.clone(optionsConfig);
 			var parentOptions = this.getParentOptions();
 			options = _.extend(parentOptions, options);
-			this.addParentModelAttributes(options);
+			this.addModelAndCollectionOptions(options);
 			return options;
 		},
 		getOptionsSequence: function (optionsConfig, $element) {
@@ -224,7 +251,7 @@
 			var parentOptions = this.getParentOptions();
 			sequence = _.map(sequence, function (options) {
 				options = _.extend(_.clone(parentOptions), options);
-				this.addParentModelAttributes(options);
+				this.addModelAndCollectionOptions(options);
 				return options;
 			}, this);
 			return sequence;
@@ -236,54 +263,89 @@
 				return parentOptions;
 			} else if (this.config.parentOptions === "*") {
 				parentOptions = _.clone(this.parentView.options);
+				delete parentOptions.el;
 			} else {
 				var keys = parentOptionsConfig.split(whitespaceSplitter);
 				for (var i = 0, l = keys.length; i < l; i++) {
 					var key = keys[i];
-					parentOptions[key] = this.parentView.options[key];
+					if (key != 'el') {
+						parentOptions[key] = this.parentView.options[key];
+					}
 				}
 			}
 			return parentOptions;
 		},
 		// It's common for a child view to manage a collection or model that is
-		// an attribute of the parent view's model - the model and collection 
-		// properties on the child view configuration provide a shortcut to 
+		// either:
+		// - an attribute of the parent view's model
+		// - obtained via a function when the child view is created 
+		// Properties on the child view configuration provide a shortcut to 
 		// setting these properties
-		addParentModelAttributes: function (options) {
-			var parentModel = this.parentView.model;
-			if (parentModel) {
-				_.each(["model", "collection"], function (optionsKey) {
-					var attributeKey = this.config[optionsKey];
-					if (attributeKey) {
-						options[optionsKey] = parentModel.get(attributeKey);
+		addModelAndCollectionOptions: function (options) {
+			_.each(["model", "collection"], function (optionsKey) {
+				if(this.config[optionsKey]) {
+					var option = getValue(this.config, optionsKey, this.parentView);
+					if (_.isString(option) && this.parentView.model) {
+						option = this.parentView.model.get(option);
 					}
-				}, this);
-			}
+					options[optionsKey] = option;
+				}
+			}, this);
+		},
+		cleanUp: function () {
+			var views = _.flatten(this.created);
+			_.each(views, function (view) {
+				// Use centrally configured mechanism to clean up child view
+				childViewsConfig.cleanUpView(view);
+			});
+			this.created = [];
+		},
+		eachView: function (fn) {
+			_.each(_.flatten(this.created), function (view) {
+				fn(view);
+			});
 		}
 	});
 	var whitespaceSplitter = /\s+/;
 
 	// Helper function to get a value from an object as a property
 	// or as a function.
-	var getValue = function (object, prop) {
+	var getValue = function (object, prop, context) {
 		if (!(object && object[prop])) return null;
-		return _.isFunction(object[prop]) ? object[prop]() : object[prop];
+		context = context || object;
+		return _.isFunction(object[prop]) ? object[prop].apply(context) : object[prop];
 	};
-
-
 
 
 
 	// Mix-in used to extend View with child view functionality
 	var ChildViews = {
-
+		attachChildViews: function () {
+			var helper = this.childViewHelper || (this.childViewHelper = new ChildViewHelper(this));
+			return helper.attach.apply(helper, arguments);
+		},
+		getChildView: function (name, at) {
+			if (this.childViewHelper) {
+				return this.childViewHelper.getChildView(name, at);
+			}
+		},
+		getChildViews: function (name, at) {
+			if (this.childViewHelper) {
+				return this.childViewHelper.getChildViews(name, at);
+			}
+		},
+		eachChildView: function (fn) {
+			if (this.childViewHelper) {
+				this.childViewHelper.eachChildView(fn);
+			}
+		}
 	};
 
 	// Define a scope for extensions
 	var root = this;
 	root.Backbone.easyext = root.Backbone.easyext || {};
 	root.Backbone.easyext.views = {
-		ChildViewHelper: ChildViewHelper,
+		ChildViews: ChildViews,
 		// Configurable behaviour, pass null to reset to default settings
 		configureChildViews: function (config) {
 			childViewsConfig = _.extend(_.clone(defaultChildViewsConfig), config);
