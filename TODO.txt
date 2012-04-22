@@ -1,6 +1,4 @@
 ﻿CHILDVIEWS
 ----------
 
-What happens when attaching for second time? Need to prevent selectors from matching on elements within child views
-
-Attach modes, e.g. attach, append
+Add refreshChildViews method - different behaviour to attach, as it will only refresh already attached views - 
