@@ -141,7 +141,7 @@
 		getChildViewSequences: function (name) {
 			return this.getCreated(name, false, true);
 		},
-
+		
 		eachChildView: function (fn) {
 			for (var i = 0, l = this.descriptors.length; i < l; i++) {
 				this.descriptors[i].eachView(fn);
@@ -230,7 +230,7 @@
 						collection = this.parentView.model ? this.parentView.model.get(sequenceConfig.collection) : null;
 					}
 					else {
-						collection = sequenceConfig.collection;
+						collection = getValue(sequenceConfig, "collection", this.parentView);
 					}
 					models = collection instanceof Backbone.Collection ? collection.models : [];
 				} else {
@@ -343,9 +343,7 @@
 
 
 	// "Mix-in" used to extend Backbone.View with child view functionality
-	var ChildViews = {
-		
-	};
+	var ChildViews = { };
 	// Add functions from ChildViewHelper to our extension - they'll just delegate from view to ChildViewHelperInstance
 	_.each(["attachChildViews", "getChildView", "getChildViews", "getChildViewSequence", "getChildViewSequences"], function (name) {
 		ChildViews[name] = function () {

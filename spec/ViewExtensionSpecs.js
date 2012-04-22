@@ -512,6 +512,4 @@ describe("Child View Management", function () {
 		});
 
 	});
-
-
 });

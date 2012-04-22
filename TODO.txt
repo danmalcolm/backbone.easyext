@@ -2,3 +2,7 @@
 ----------
 
 Add refreshChildViews method - different behaviour to attach, as it will only refresh already attached views - 
+
+Attach modes, e.g. attach, append
+
+Rename sequence to foreach, repeater...something more familiar
