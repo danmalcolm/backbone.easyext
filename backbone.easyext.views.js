@@ -345,7 +345,7 @@
 	// "Mix-in" used to extend Backbone.View with child view functionality
 	var ChildViews = { };
 	// Add functions from ChildViewHelper to our extension - they'll just delegate from view to ChildViewHelperInstance
-	_.each(["attachChildViews", "getChildView", "getChildViews", "getChildViewSequence", "getChildViewSequences"], function (name) {
+	_.each(["attachChildViews", "getChildView", "getChildViews", "getChildViewSequence", "getChildViewSequences", "eachChildView"], function (name) {
 		ChildViews[name] = function () {
 			var helper = this.childViewHelper || (this.childViewHelper = new ChildViewHelper(this));
 			return helper[name].apply(helper, arguments);
