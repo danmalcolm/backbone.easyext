@@ -87,18 +87,29 @@
 		// Indicates whether a set of attributes belongs to the specified model.
 		// This check is required when the model's attributes are set using data from
 		// the server during sync or fetch.
-		attributesCorrelateWithModel: function (model, attributes) {
-
+		attributesCorrelateWithModel: function (model, cache, attributes, options) {
 			if (!_.isNull(model.id) && model.id === attributes[model.idAttribute]) {
 				// Comparing persistent model (id available) and ids match (easy)
 				return true;
 			}
-			// Model not persistent, so test for "business key equality" - http://docs.jboss.org/hibernate/orm/3.3/reference/en/html/persistent-classes.html#persistent-classes-equalshashcode
-			var current = this.getDataToCompare(model, model.attributes);
+
+			// Model not persistent, but attributes might belong to this model (e.g. after syncing)
+			// so test for "business key equality" - http://docs.jboss.org/hibernate/orm/3.3/reference/en/html/persistent-classes.html#persistent-classes-equalshashcode
+
+			// Optimisation for collection scenarios, where a model will be compared multiple times
+			var modelCompareData;
+			modelCompareData = cache && cache[model.cid] ? cache[model.cid] : this.getDataToCompare(model, model.attributes);
+			if (cache)
+				cache[model.cid] = modelCompareData;
+
+			// Convert attributes as specified by model's attribute conversion configuration 
+			// so that we are comparing correctly converted attributes
 			var newData = this.getDataToCompare(model, attributes, function (key, value) {
-				return model.prepareValue(key, value, model.attributes);
+				var convertor = model.attributeConvertor;
+				var convertOptions = _.extend({}, options, { inPlace: false });
+				return convertor ? convertor.convertValue(key, value, convertOptions) : value;
 			});
-			return _.isEqual(current, newData);
+			return _.isEqual(modelCompareData, newData);
 		},
 
 		getDataToCompare: function (model, attributes, convert) {
@@ -135,7 +146,7 @@
 			appliesTo: function (attrConfig) {
 				return _.isFunction(attrConfig.model);
 			},
-			convert: function (parent, descriptor, value) {
+			convert: function (parent, descriptor, value, options) {
 				if (value instanceof descriptor.model) {
 					// Value being set already the kind of model we need
 					return value;
@@ -144,15 +155,19 @@
 					// Can't convert to model if value not an attributes object TODO: needs error, warning?
 					return value;
 				}
-				var newAttributes = value;
 				var model;
+				// Get existing model
 				model = parent.attributes[descriptor.key];
-				if (model instanceof descriptor.model && modelComparer.attributesCorrelateWithModel(model, newAttributes)) {
-					// Update attributes of existing model
-					model.set(newAttributes, { silent: true });
+				if (options.inPlace !== false
+					&& model instanceof descriptor.model
+					&& modelComparer.attributesCorrelateWithModel(model, null, value, options)) {
+					// Existing model is equivalent so update its attributes in-place.
+					// Setting inPlace to false is used if we don't want conversion to have
+					// side effects on child models belonging to target model, see modelComparer.getDataToCompare
+					model.set(value, { silent: options.silent });
 				} else {
-					// Convert to model
-					model = new descriptor.model(newAttributes);
+					// Convert raw data to model
+					model = new descriptor.model(value);
 				}
 				return model;
 			}
@@ -163,7 +178,7 @@
 			appliesTo: function (attrConfig) {
 				return _.isFunction(attrConfig.collection);
 			},
-			convert: function (parent, descriptor, value) {
+			convert: function (parent, descriptor, value, options) {
 				if (value instanceof descriptor.collection) {
 					// Value being set is already the kind of collection we need
 					return value;
@@ -173,49 +188,46 @@
 					return value;
 				}
 				var collection = parent.attributes[descriptor.key];
-				if (collection instanceof descriptor.collection) {
-					// Return existing collection, so that we don't end up with
-					// a different collection instance (objects might be bound
-					// to collection)
-					this.mergeModels(collection, value);
+				if (options.inPlace !== false && collection instanceof descriptor.collection) {
+					// Return existing collection (after updating its contents)
+					this.mergeModels(collection, value, options);
 				} else {
 					// Convert array to collection
-					var options = { parent: parent };
-					collection = new descriptor.collection(value, options);
+					var collectionOptions = { parent: parent };
+					collection = new descriptor.collection(value, collectionOptions);
 				}
 				return collection;
 			},
-			mergeModels: function (collection, modelsData) {
+			mergeModels: function (collection, modelsData, options) {
 
 				var idAttribute = collection.model.prototype.idAttribute;
 				var transientModels = collection.filter(function (model) {
 					return _.isNull(model.id) || _.isUndefined(model.id);
 				});
-
+				var cache = {};
 				var models = _.map(modelsData, function (attributes) {
 					// Try and find model with same id
 					var model = collection.get(attributes[idAttribute]);
 					if (!model) {
 						// Otherwise find a match among unsaved models
-						// TODO - could do with caching result of modelComparer.getDataToCompare
-						// as the same model could be compared multiple times
-						model = _.detect(transientModels, function (t) {
-							return modelComparer.attributesCorrelateWithModel(t, attributes);
+						model = _.detect(transientModels, function (transientModel) {
+							return modelComparer.attributesCorrelateWithModel(transientModel, cache, attributes, options);
 						});
 					}
 					if (model) {
-						// should not trigger events while converting
-						model.set(attributes, { silent: true }); 
+						// trigger events based on options supplied in call to set
+						model.set(attributes, { silent: options.silent });
 						return model;
 					} else {
 						// just use attributes, collection will convert to model
 						return attributes;
 					}
 				});
-				collection.reset(models, { silent: true });
+				collection.reset(models, { silent: options.silent });
 			}
 		},
-		// Converts dates from string value like "/Date(1361441768427)/" used by Microsoft's JSON serializers and JSON.Net: 
+		// Converts dates from string value like "/Date(1361441768427)/" used by some Microsoft JSON serializers 
+		// and (originally) JSON.Net: 
 		// http://weblogs.asp.net/bleroy/archive/2008/01/18/dates-and-json.aspx
 		dotNetDateConvertor: {
 			appliesTo: function (attrConfig) {
@@ -262,19 +274,26 @@
 			throw new Error("The config for converting attribute '" + key + "' is invalid. "
 				+ message + "\nPlease check the config supplied via your model's attributeConversion method");
 		},
-		convert: function (key, value) {
+		convertValues: function (attrs, options) {
+			var converted = {};
+			for (var key in attrs) {
+				converted[key] = this.convertValue(key, attrs[key], options);
+			}
+			return converted;
+		},
+		convertValue: function (key, value, options) {
 			var descriptor = this.descriptors[key];
 			return (descriptor && descriptor.convertor)
-				? descriptor.convertor.convert(this.model, descriptor, value)
+				? descriptor.convertor.convert(this.model, descriptor, value, options)
 				: value;
 		}
 	});
 
 	// Mix-in used to extend Model with attribute conversion functionality
 	var AttributeConversion = {
-		prepareValue: function (key, value) {
+		prepareValues: function (attrs, options) {
 			this.attributeConvertor || (this.attributeConvertor = new AttributeConvertor(this));
-			return this.attributeConvertor.convert(key, value);
+			return this.attributeConvertor.convertValues(attrs, options);
 		}
 	};
 

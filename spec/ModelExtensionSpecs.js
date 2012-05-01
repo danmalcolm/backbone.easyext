@@ -192,7 +192,7 @@ describe("AttributeConversion", function () {
 					customer: { model: Customer }
 				};
 			},
-			correlationAttrs: ["date"]
+			correlationAttrs: ["date", "customer"]
 		});
 		var Customer = Model.extend({
 			correlationAttrs: ["email"]
@@ -272,6 +272,7 @@ describe("AttributeConversion", function () {
 
 			});
 
+			
 			describe("when child is persistent and data contains persistent data for same model", function () {
 				var order = new Order({
 					id: 28373,
@@ -441,7 +442,81 @@ describe("AttributeConversion", function () {
 		});
 
 	});
-	
+
+	describe("silent options", function () {
+
+		var Order = Model.extend({
+			attributeConversion: function () {
+				return {
+					customer: { model: Customer },
+					lines: { collection: OrderLineCollection }
+				};
+			},
+			correlationAttrs: ["date", "customer"]
+		});
+		var Customer = Model.extend({
+			correlationAttrs: ["email"]
+		});
+		var OrderLine = Model.extend({
+			attributeConversion: function () {
+				return {
+					product: { model: Product }
+				};
+			},
+			correlationAttrs: ["product", "quantity"]
+		});
+		var Product = Backbone.Model.extend({
+			correlationAttrs: ["ean"]
+		});
+		var OrderLineCollection = Backbone.Collection.extend({
+			model: OrderLine,
+			initialize: function (models, options) {
+				this.parent = options.parent;
+			}
+		});
+
+		var originalData = {
+			id: 1233,
+			customer: { id: 37373, name: "Tom", email: "tom@horseenthusiastmagazine.com" },
+			date: new Date(2012, 1, 1),
+			origin: "web",
+			lines: [
+				{ id: 13344, product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+				{ id: 13345, product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2 }
+			]
+		};
+		var newData = {
+			id: 1233,
+			customer: { id: 37373, name: "Tommy", email: "tommy@horseenthusiastmagazine.com" },
+			date: new Date(2012, 1, 1),
+			origin: "web",
+			lines: [
+				{ id: 13344, product: { id: 335, ean: "1234561234569", name: "Apple" }, quantity: 1 },
+				{ id: 13345, product: { id: 335, ean: "3211561234569", name: "Pear" }, quantity: 2 }
+			]
+		};
+
+		var order;
+		beforeEach(function () {
+			order = new Order(originalData);
+		});
+
+		it("should silently update nested model if silent specified", function () {
+			var triggered = false;
+			order.get('customer').on('change', function () { triggered = true; });
+			order.set(newData, { silent: true });
+			expect(triggered).toBeFalsy();
+		});
+
+		it("should update nested model normally if silent not specified", function () {
+			var triggered = false;
+			order.get('customer').on('change', function () { triggered = true; });
+			order.set(newData);
+			expect(triggered).toBeTruthy();
+		});
+
+	});
+
 	describe(".net date value attributes", function () {
 
 		var Order = Model.extend({
@@ -466,7 +541,7 @@ describe("AttributeConversion", function () {
 
 	describe("Backbone assumptions", function () {
 
-		it("extending 2 different Models should have different prototypes", function() {
+		it("extending 2 different Models should have different prototypes", function () {
 			var Model1 = Backbone.Model.extend({ something: 1 });
 			var Model2 = Backbone.Model.extend({ something: 2 });
 			var model1 = new Model1();
