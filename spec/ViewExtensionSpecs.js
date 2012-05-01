@@ -3,7 +3,7 @@ describe("Child View Management", function () {
 	// Configuration and view supertype for a typical application	
 	var BaseView = Backbone.View.extend({
 
-		// custom clean-up / disposal logic
+		// custom clean-up / disposal logic to ensure 
 		close: function () {
 			this.unbind();
 			if (this.childViewHelper) this.childViewHelper.cleanUp();
@@ -13,8 +13,9 @@ describe("Child View Management", function () {
 
 		render: function () {
 			// attachChildViews should be called after the view's element ($el)
-			// content has been generated. These tests set the $el content  
-			// directly when creating view, so it is ready for child views.
+			// content has been generated (perhaps by loading and populating a
+			// template). These tests set the $el content directly when creating
+			// views making it ready for child views to be attached.
 			this.attachChildViews();
 		}
 	});

@@ -14,33 +14,38 @@
 
 		},
 		// The properties that will be used to read child view configuration
-		// from the parent view
+		// from the parent view. Multiple properties might be useful when you
+		// have a view hierarchy, with items "inheriting" common definitions
+		// and adding their owon
 		configProperties: ["childViews"],
 		// Returns the selector used to find elements to which child
-		// views should be attached
+		// views should be attached. By default elements are identified
+		// by the data-childview attribute, <div data-childview="child1">
 		defaultElementSelector: function (name) {
 			return '[data-childview=' + name + ']';
 		},
-		// Controls whether render is called automatically upon
+		// Controls whether render is called automatically following
 		// creation of each child view
 		autoRender: true
 	};
 
 	// Manages creation of child views that have been configured to be attached
 	// to elements within the DOM element managed by a parent view. Child views
-	// are specified in an object defined by a "childViews" property defined on 
-	// the parent view, e.g.
+	// are specified via a "childViews" property defined on the parent view, e.g.
 	//
 	// var MyView = Backbone.View.extend({
 	//
 	//   ...
 	// 
-	//   childViews: {
-	//     attachments: { view: AttachmentsView, options: { position: "left" } }
+	//   childViews: function() {
+	//		return {
+	//			attachments: { view: AttachmentsView, options: { position: "left" } }
+	//		};
 	//   }
-	//   
 	//   ...
 	// }
+	//
+	// A function is commonly used to allow access to the scope of the view at runtime and
 	//
 	var ChildViewHelper = function (parentView) {
 		this.parentView = parentView;
