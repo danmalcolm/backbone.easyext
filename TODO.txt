@@ -1,10 +1,70 @@
 ﻿CHILDVIEWS
 ----------
 
-Add refreshChildViews method - different behaviour to attach, as it will only refresh already attached views - 
+Add refreshChildViews method - different behaviour to attach, as it will only refresh already attached views - resolves issue of selector matching elements within child view content
 
 Rename sequence to foreach, repeater...something more familiar
+
+When using a repeater, consider introducing a RepeaterView
 
 
 ATTRIBUTE CONVERSION
 --------------------
+
+
+
+TEMPLATES
+---------
+
+Layout templates, e.g. 
+
+
+sharedtemplates.tpl.html:
+
+<script id="shared-shell" type="text/template">
+
+ header
+
+  <div data-templateregion="main">
+  </div> 
+   
+  footer
+ 
+  <div data-templateregion="customfooter">
+  </div>
+
+</script> 
+
+
+
+templates1.html:
+
+
+<script id="page1" type="text/template" data-templateparent="sharedtemplates.tpl.html #shared-shell" >
+
+	everything here goes into main content region from shell template
+  
+  
+  <!-- this gets pulled into template region in above template -->
+  <div data-templateregioncontent="customfooter">
+  
+  </div>
+  
+  
+</script> 
+
+<script id="t1" type="text/template">
+
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
