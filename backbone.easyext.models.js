@@ -8,6 +8,25 @@
 		this.initialize();
 
 	};
+
+	// Returns a deep clone of a model's attributes, cloning the
+	// attributes of any nested models
+	var cloneState = function (source) {
+		
+		if (!_.isObject(source)) return source;
+
+		if (source.toJSON) return cloneState(source.toJSON());
+		
+		if (_.isArray(source)) return _.map(source, cloneState);
+
+		var clone = {};
+		for (var key in source) {
+			var value = source[key];
+			clone[key] = cloneState(value);
+		}
+		return clone;
+	};
+
 	_.extend(DirtyTracker.prototype, {
 
 		initialize: function () {
@@ -16,27 +35,16 @@
 		},
 
 		trackLastSyncedState: function () {
-			this.lastSyncedState = this.cloneState(this.model);
+			this.lastSyncedState = cloneState(this.model);
 		},
 
 		isDirty: function () {
-			var currentState = this.cloneState(this.model);
+			var currentState = cloneState(this.model);
 			var dirty = !_.isEqual(this.lastSyncedState, currentState);
 			return dirty;
-		},
-
-		// Returns a deep clone of the model's attributes, cloning the
-		// attributes of nested models
-		cloneState: function (model) {
-			var obj = {};
-			var attributes = model.attributes;
-			for (var name in attributes) {
-				var value = attributes[name];
-				value = value && value.toJSON ? value.toJSON() : value;
-				obj[name] = value;
-			}
-			return obj;
 		}
+
+
 	});
 
 	// Extends a model with dirty tracking functionality by creating

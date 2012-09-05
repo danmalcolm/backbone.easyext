@@ -4,17 +4,18 @@ describe("Dirty Tracking", function () {
 
 	describe("Checking dirty state using DirtyTracker directly", function () {
 
-		var Product = Backbone.Model.extend({});
-
 		var simulateSuccessfulSync = function (data) {
 			spyOn(Backbone, 'sync').andCallFake(function (method, model, options) {
 				options.success(data);
 			});
 		};
 
-		var product, tracker;
 
 		describe("when testing simple model", function () {
+
+			var Product = Backbone.Model.extend({});
+
+			var product, tracker;
 
 			beforeEach(function () {
 				product = new Product({
@@ -66,7 +67,45 @@ describe("Dirty Tracking", function () {
 			});
 		});
 
+		describe("when testing model containing 2 levels of nested models", function () {
+
+			var Product = Backbone.Model.extend({});
+			var Manufacturer = Backbone.Model.extend({});
+			var Person = Backbone.Model.extend({});
+
+			var product, manufacturer, owner, tracker;
+
+			beforeEach(function () {
+				owner = new Person({ name: 'Mr John Smith' });
+				manufacturer = new Manufacturer({ id: 345, name: "FruitMaster", owner: owner });
+				product = new Product({
+					id: 123456,
+					code: "apple",
+					name: "Apple",
+					manufacturer: manufacturer
+				});
+				tracker = new Backbone.easyext.models.DirtyTracker(product);
+			});
+
+			it("should not be be dirty if no changes have been made", function () {
+				expect(tracker.isDirty()).toBeFalsy();
+			});
+
+			it("should be dirty if attribute within deepest model has changed", function () {
+				owner.set("name", "New Name!");
+				expect(tracker.isDirty()).toBeTruthy();
+			});
+
+			it("should not be dirty if deepest model replaced with model with identical attributes", function () {
+				manufacturer.set("owner", new Person(owner.attributes));
+				expect(tracker.isDirty()).toBeFalsy();
+			});
+			
+		});
+
 		describe("when testing model with nested collection", function () {
+
+			var Product = Backbone.Model.extend({});
 
 			var Review = Backbone.Model.extend({});
 
@@ -77,7 +116,7 @@ describe("Dirty Tracking", function () {
 				}
 			});
 
-			var review1, review2;
+			var product, review1, review2, tracler;
 			beforeEach(function () {
 				var reviews = [
 						new Review({ id: 8879, user: "Dave", comments: "They are very nice" }),
@@ -120,6 +159,12 @@ describe("Dirty Tracking", function () {
 				expect(tracker.isDirty()).toBeTruthy();
 			});
 
+			it("should not be dirty if removing, then adding different model back to collection with identical attributes", function () {
+				product.get("reviews").remove(review1);
+				product.get("reviews").add(new Review(review1.attributes));
+				expect(tracker.isDirty()).toBeFalsy();
+			});
+
 			it("should not be dirty if removing, then adding model back to collection maintaining previous model order", function () {
 				product.get("reviews").remove(review1);
 				product.get("reviews").add(review1);
@@ -127,7 +172,9 @@ describe("Dirty Tracking", function () {
 			});
 
 			it("should be dirty if removing, then adding model back to collection results in change to model order", function () {
+				// no comparator means that items will not be sorted, so adding item will change order
 				product.get("reviews").comparator = null;
+
 				product.get("reviews").remove(review1);
 				product.get("reviews").add(review1);
 				expect(tracker.isDirty()).toBeTruthy();
@@ -141,6 +188,8 @@ describe("Dirty Tracking", function () {
 			});
 		});
 	});
+
+
 
 	describe("Checking dirty state using model extension", function () {
 		var Model = Backbone.Model.extend({
