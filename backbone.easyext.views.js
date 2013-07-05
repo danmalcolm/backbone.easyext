@@ -167,6 +167,9 @@
 		this.name = name;
 		this.parentView = parentView;
 		this.config = config;
+		if (!config.view) {
+			throw new Error('view property undefined on child view "' + name + '"');
+		}
 		this.created = [];
 		this.isSequence = !_.isUndefined(config.sequence);
 	};
