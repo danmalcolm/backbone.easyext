@@ -248,9 +248,11 @@
 				}
 
 				var sharedOptions = this.getOptions(this.config.options || {}, $element);
+				var index = 0;
 				optionsSequence = _.map(models, function (model) {
 					var options = _.clone(sharedOptions);
 					options.model = model;
+					options.childViewContext = { index: index++ };
 					return options;
 				});
 			} else if (_.isArray(sequenceConfig.options) || _.isFunction(sequenceConfig.options)) {
@@ -313,8 +315,8 @@
 		// either:
 		// - an attribute of the parent view's model
 		// - obtained via a function when the child view is created 
-		// Properties on the child view configuration provide a shortcut to 
-		// setting these properties
+		// The 'model' and 'collection' properties on the child view configuration 
+		// provide a shortcut to setting these properties
 		addModelAndCollectionOptions: function (options) {
 			_.each(["model", "collection"], function (key) {
 				if (this.config[key]) {
