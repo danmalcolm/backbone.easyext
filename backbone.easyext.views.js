@@ -59,9 +59,11 @@
 		initializeChildViews: function () {
 			var childViewConfig = this.readChildViewConfig();
 			_.each(childViewConfig, function (value, name) {
-				var descriptor = new RegisteredChildViewDescriptor(name, this.parentView, value);
-				this.descriptors.push(descriptor);
-				this.descriptorsByName[name] = descriptor;
+				if(!value.ignore) {
+					var descriptor = new RegisteredChildViewDescriptor(name, this.parentView, value);
+					this.descriptors.push(descriptor);
+					this.descriptorsByName[name] = descriptor;
+				}
 			}, this);
 		},
 
