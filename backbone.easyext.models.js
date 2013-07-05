@@ -42,6 +42,14 @@
 			var currentState = cloneState(this.model);
 			var dirty = !_.isEqual(this.lastSyncedState, currentState);
 			return dirty;
+		},
+		
+		diff: function () {
+			var currentState = cloneState(this.model);
+			var dirty = !_.isEqual(this.lastSyncedState, currentState);
+			var lastSynced = JSON.stringify(this.lastSyncedState, null, 2);
+			var current = JSON.stringify(currentState, null, 2);
+			return { lastSynced: lastSynced, current: current, dirty: dirty };
 		}
 
 
