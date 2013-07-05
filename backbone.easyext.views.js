@@ -93,7 +93,7 @@
 			var created;
 			var descriptor = this.descriptorsByName[name];
 			if (!descriptor) {
-				throw new Error('Child view definition "' + descriptor.name + '" does not exist on the parent view.');
+				throw new Error('Child view definition "' + name + '" does not exist on the parent view.');
 			}
 
 			// Ensure we have instances or sequences
